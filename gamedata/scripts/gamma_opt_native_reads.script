@@ -308,8 +308,9 @@ function(self, delta)
 end
 ]====]
 
-function start()
-    if installed then return true,'already active' end
+local vision_installed, device_installed = false, false
+function start_vision()
+    if vision_installed then return true,'already active' end
     local v=visual_memory_manager and visual_memory_manager.get_visible_value
     local outer,slot=v,nil
     local outer_info=type(v)=='function' and debug.getinfo(v,'S')
@@ -320,19 +321,33 @@ function start()
             if n=='orig' and type(value)=='function' then slot=i;v=value;break end
         end
     end
+    local vi=type(v)=='function' and debug.getinfo(v,'S')
+    if not vi or not vi.source:match('visual_memory_manager%.script$') or vi.linedefined~=28 then
+        return false,'visibility implementation differs'
+    end
+    local nv,err=bind_body(v,vision_body)
+    if not nv then return false,tostring(err) end
+    if slot then debug.setupvalue(outer,slot,nv) else visual_memory_manager.get_visible_value=nv end
+    vision_installed=true
+    return true,'conditional flashlight lookups; live visibility preserved'
+end
+function start_device()
+    if device_installed then return true,'already active' end
     local c=item_device and item_device.device_binder
     local d=c and c.update
-    local vi=type(v)=='function' and debug.getinfo(v,'S')
     local di=type(d)=='function' and debug.getinfo(d,'S')
-    if not vi or not vi.source:match('visual_memory_manager%.script$') or vi.linedefined~=28
-        or not di or not di.source:match('item_device%.script$') or di.linedefined~=700 then
-        return false,'visibility/device implementation differs'
+    if not di or not di.source:match('item_device%.script$') or di.linedefined~=700 then
+        return false,'device implementation differs'
     end
-    local nv,ve=bind_body(v,vision_body);local nd,de=bind_body(d,device_body)
-    if not nv or not nd then return false,tostring(ve or de) end
-    if slot then debug.setupvalue(outer,slot,nv) else visual_memory_manager.get_visible_value=nv end
+    local nd,err=bind_body(d,device_body)
+    if not nd then return false,tostring(err) end
     c.update=nd
-    installed=true
-    return true,'conditional flashlight lookups; retained device identity; live visibility and power logic'
+    device_installed=true
+    return true,'retained device identity; live power logic preserved'
+end
+function start()
+    local v,vd=start_vision()
+    local d,dd=start_device()
+    return v or d, 'visibility: '..tostring(vd)..'; device: '..tostring(dd)
 end
 function test_bodies() return vision_body,device_body end

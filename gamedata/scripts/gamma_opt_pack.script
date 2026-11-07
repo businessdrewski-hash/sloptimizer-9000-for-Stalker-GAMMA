@@ -1,123 +1,79 @@
--- Component startup and activation status.
-
+-- Independent optional components. No third-party mod gates pack startup.
 local started = false
 local first
 local results = {}
-local function add(name, ok, detail)
-    results[#results + 1] = name .. ': ' .. (ok and 'ACTIVE' or 'SKIPPED') .. ' - ' .. tostring(detail)
+local function add(name, state, detail)
+    results[#results + 1] = name .. ': ' .. state .. ' - ' .. tostring(detail)
+end
+local function available(name)
+    if type(rawget(_G, name)) == 'table' then return true end
+    local found = getFS():exist('$game_scripts$', name .. '.script')
+    return found ~= nil and found ~= false
+end
+local function run(name, module, method, dependencies, argument)
+    local success, ok, detail = pcall(function()
+        for _, dependency in ipairs(dependencies) do
+            if not available(dependency) then return false, 'optional script missing: ' .. dependency end
+        end
+        local component = _G[module]
+        if not component or type(component[method]) ~= 'function' then
+            return false, 'component initializer unavailable'
+        end
+        if name == 'markers' then
+            local util = utils_catspaw_hudmarks
+            local d = util and type(util.marker_is_offscreen) == 'function'
+                and debug.getinfo(util.marker_is_offscreen, 'S')
+            if not d or not d.source:match('utils_catspaw_hudmarks%.script$') or d.linedefined ~= 1738 then
+                return false, 'marker implementation differs or another override is active'
+            end
+            component[method]()
+            return true, 'smooth projection / scheduled semantic checks'
+        end
+        return component[method](argument)
+    end)
+    if success then
+        add(name, ok and 'ACTIVE' or 'SKIPPED', detail)
+    else
+        add(name, 'ERROR', ok)
+    end
 end
 function start()
-    if started then
-        return results
-    end
+    if started then return results end
     started = true
     local cfg = gamma_opt_config
-    if cfg.shared_clock then
-        local ok, detail = gamma_opt_clock.start()
-        add('shared clock', ok, detail)
-    end
-    if cfg.markers then
-        local util = utils_catspaw_hudmarks
-        local d = util
-            and type(util.marker_is_offscreen) == 'function'
-            and debug.getinfo(util.marker_is_offscreen, 'S')
-        if d and d.source:match('utils_catspaw_hudmarks%.script$') and d.linedefined == 1738 then
-            local ok, err = pcall(gamma_opt_markers.start)
-            add('markers', ok, ok and 'smooth projection / scheduled semantic checks' or err)
-        else
-            add('markers', false, 'marker implementation differs or another override is active')
-        end
-    end
-    if cfg.injury_display then
-        local ok, detail = gamma_opt_injury.start(cfg.injury_display_interval_ms)
-        add('injury display', ok, detail)
-    end
-    if cfg.ledge_ray_reuse then
-        local ok, detail = gamma_opt_ledge.start()
-        add('ledge rays', ok, detail)
-    end
-    if cfg.callback_cache then
-        local ok, detail = gamma_opt_callbacks.start()
-        add('callback cache', ok, detail)
-    end
-    if cfg.ray_query_inputs then
-        local ok, detail = gamma_opt_ray_query.start()
-        add('ray query inputs', ok, detail)
-    end
-    if cfg.light_scan_cache then
-        local ok, detail = gamma_opt_environment.start_lights(cfg.light_scan_interval_ms)
-        add('light scans', ok, detail)
-    end
-    if cfg.offline_peer_panel then
-        local ok, detail = gamma_opt_environment.start_peers()
-        add('offline peer panel', ok, detail)
-    end
-    if cfg.peer_field_cache then
-        local ok, detail = gamma_opt_peer_fields.start()
-        add('peer field cache', ok, detail)
-    end
-    if cfg.artifact_kind_cache then
-        local ok, detail = gamma_opt_items.start()
-        add('artifact metadata', ok, detail)
-    end
-    if cfg.v2_item_updates then
-        local ok, d = gamma_opt_item_v2.start()
-        add('V2 item update', ok, d)
-    end
-    if cfg.v2_artifact_updates then
-        local ok, d = gamma_opt_artifact_v2.start()
-        add('V2 artifact update', ok, d)
-    end
-    if cfg.v2_projection then
-        local ok, d = gamma_opt_projection_v2.start()
-        add('V2 projection', ok, d)
-    end
-    if cfg.v2_radiation then
-        local ok, d = gamma_opt_radiation_v2.start()
-        add('V2 radiation', ok, d)
-    end
-    if cfg.v2_task_checks then
-        local ok, d = gamma_opt_tasks_v2.start()
-        add('V2 task checks', ok, d)
-    end
-    if cfg.vision_light_frame then
-        local ok, detail = gamma_opt_vision_light.start()
-        add('vision world light', ok, detail)
-    end
-    if cfg.native_read_reduction then
-        local ok, detail = gamma_opt_native_reads.start()
-        add('native read reduction', ok, detail)
-    end
-    if cfg.lamp_save_buffers then
-        local ok, detail = gamma_opt_churn.start_lamp_buffers()
-        add('lamp save buffers', ok, detail)
-    end
+    if cfg.shared_clock then run('shared clock', 'gamma_opt_clock', 'start', {}, nil) end
+    if cfg.markers then run('markers', 'gamma_opt_markers', 'start', {'utils_catspaw_hudmarks','ui_hud_dotmarks'}, nil) end
+    if cfg.injury_display then run('injury display', 'gamma_opt_injury', 'start', {'zzz_player_injuries'}, cfg.injury_display_interval_ms) end
+    if cfg.ledge_ray_reuse then run('ledge rays', 'gamma_opt_ledge', 'start', {'demonized_ledge_grabbing','demonized_geometry_ray','axr_main'}, nil) end
+    if cfg.callback_cache then run('callback cache', 'gamma_opt_callbacks', 'start', {'axr_main'}, nil) end
+    if cfg.ray_query_inputs then run('ray query inputs', 'gamma_opt_ray_query', 'start', {'demonized_geometry_ray'}, nil) end
+    if cfg.light_scan_cache then run('light scans', 'gamma_opt_environment', 'start_lights', {'bind_light_furniture'}, cfg.light_scan_interval_ms) end
+    if cfg.offline_peer_panel then run('offline peer panel', 'gamma_opt_environment', 'start_peers', {'xrr_peer_hud'}, nil) end
+    if cfg.peer_field_cache then run('peer field cache', 'gamma_opt_peer_fields', 'start', {'xrr_peer_hud'}, nil) end
+    if cfg.artifact_kind_cache then run('artifact metadata', 'gamma_opt_items', 'start', {'item_artefact'}, nil) end
+    if cfg.v2_item_updates then run('V2 item update', 'gamma_opt_item_v2', 'start', {'bind_item'}, nil) end
+    if cfg.v2_artifact_updates then run('V2 artifact update', 'gamma_opt_artifact_v2', 'start', {'item_artefact'}, nil) end
+    if cfg.v2_projection then run('V2 projection', 'gamma_opt_projection_v2', 'start', {'utils_catspaw_hudmarks','ui_hud_dotmarks'}, nil) end
+    if cfg.v2_radiation then run('V2 radiation', 'gamma_opt_radiation_v2', 'start', {'actor_status'}, nil) end
+    if cfg.v2_task_checks then run('V2 task checks', 'gamma_opt_tasks_v2', 'start', {'task_manager'}, nil) end
+    if cfg.vision_light_frame then run('vision world light', 'gamma_opt_vision_light', 'start', {'visual_memory_manager'}, nil) end
+    if cfg.native_read_reduction then run('visibility read reduction', 'gamma_opt_native_reads', 'start_vision', {'visual_memory_manager','stealth_mcm','camp_lum','level_weathers'}, nil) end
+    if cfg.native_read_reduction then run('device read reduction', 'gamma_opt_native_reads', 'start_device', {'item_device'}, nil) end
+    if cfg.lamp_save_buffers then run('lamp save buffers', 'gamma_opt_churn', 'start_lamp_buffers', {'bind_light_furniture','hf_obj_manager'}, nil) end
     local root = getFS():update_path('$app_data_root$', 'logs\\')
     local f = io.open(root .. 'gamma-optimization-status.txt', 'w')
     if f then
-        f:write('Experimental optimization preview\n', table.concat(results, '\n'), '\n')
+        f:write('Sloptimizer 9000 v2.9.1 experimental\n', table.concat(results, '\n'), '\n')
         f:close()
     end
-    for _, line in ipairs(results) do
-        printf('[Gamma Optimization Preview] %s', line)
-    end
+    for _, line in ipairs(results) do printf('[Sloptimizer 9000] %s', line) end
     return results
 end
 function actor_on_update()
-    if started then
-        return
-    end
+    if started then return end
     first = first or time_global()
-    if time_global() - first < 5000 then
-        return
-    end
-    if not db.actor then
-        return
-    end
-    local dot = ui_hud_dotmarks
-    if gamma_opt_config.markers and (not dot or not dot.scanning or not next(dot.cfg.markers)) then
-        return
-    end
+    if time_global() - first < 5000 then return end
+    if not db or not db.actor then return end
     start()
 end
 function on_game_start()

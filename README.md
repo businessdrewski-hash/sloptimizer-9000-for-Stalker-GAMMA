@@ -1,12 +1,12 @@
 # Sloptimizer 9000 for Stalker GAMMA
 
-**Version 2.9 experimental** · Lua optimization pack
+**Version 2.9.1 experimental** · Lua optimization pack
 
-**[Download Sloptimizer 9000 v2.9 — MO2-installable ZIP](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/download/v2.9-experimental/Sloptimizer-9000-2.9-experimental.zip)**
+**[Download Sloptimizer 9000 v2.9.1 — MO2-installable ZIP](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/download/v2.9.1-experimental/Sloptimizer-9000-2.9.1-experimental.zip)**
 
-[Release notes and downloads](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/tag/v2.9-experimental)
+[Release notes and downloads](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/tag/v2.9.1-experimental)
 
-This upload is the best measured candidate used in the three-way comparison below. Later experimental changes are not included. No engine binaries, profilers, personal settings, or save files are included.
+This upload adds a compatibility fix to the best measured candidate used in the three-way comparison below. The benchmark numbers below are from v2.9, not a new v2.9.1 performance comparison. Later experimental changes are not included. No engine binaries, profilers, personal settings, or save files are included.
 
 **Creator:** Me. Credit to the original authors of the mods this builds on.
 
@@ -68,7 +68,7 @@ The timing bars above compare two already-optimized builds, not the stock game a
 
 ## Installation
 
-Close the game and install the [Sloptimizer 9000 ZIP](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/download/v2.9-experimental/Sloptimizer-9000-2.9-experimental.zip) through MO2. Use this installable ZIP, not GitHub’s “Download ZIP” source archive.
+Close the game and install the [Sloptimizer 9000 ZIP](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/download/v2.9.1-experimental/Sloptimizer-9000-2.9.1-experimental.zip) through MO2. Use this installable ZIP, not GitHub’s “Download ZIP” source archive.
 
 For best results, I recommend installing **Anti-Lag for GAMMA** as well. It’s optional, not required, but the combination gave the best results in my testing.
 
@@ -81,6 +81,8 @@ Launch normally and give it about ten seconds after loading to observe frametime
 To remove it, disable the pack and restart. You can check which fixes activated in `appdata/logs/gamma-optimization-status.txt`.
 
 ## Compatibility
+
+**v2.9.1:** Interaction Dots is not required. Each optimization checks for its own target scripts and skips missing or unsupported targets without blocking the other components. This does not remove dependencies required by GAMMA or other installed mods.
 
 Tested on my vanilla 0.9.5 GAMMA/xrRazom setup. Other versions and mod lists may differ. Tested on 3 systems now total with notable FPS/frametime improvements reported on all primarily for those with non-GPU bottlenecked systems. This pack only contains Lua scripts. It doesn’t replace any engine files or change your GC settings.
 ## Experimental of experimental work (not included in this version)
