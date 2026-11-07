@@ -2,7 +2,9 @@
 
 **Version 2.9 experimental** · Lua optimization pack
 
-[Download the MO2-installable ZIP](downloads/Sloptimizer-9000-2.9-experimental.zip?raw=true)
+**[Download Sloptimizer 9000 v2.9 — MO2-installable ZIP](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/download/v2.9-experimental/Sloptimizer-9000-2.9-experimental.zip)**
+
+[Release notes and downloads](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/tag/v2.9-experimental)
 
 This upload is the best measured candidate used in the three-way comparison below. Later experimental changes are not included. No engine binaries, profilers, personal settings, or save files are included.
 
@@ -66,7 +68,7 @@ The timing bars above compare two already-optimized builds, not the stock game a
 
 ## Installation
 
-Close the game and install the [Sloptimizer 9000 ZIP](downloads/Sloptimizer-9000-2.9-experimental.zip?raw=true) through MO2. Use this installable ZIP, not GitHub’s “Download ZIP” source archive.
+Close the game and install the [Sloptimizer 9000 ZIP](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/download/v2.9-experimental/Sloptimizer-9000-2.9-experimental.zip) through MO2. Use this installable ZIP, not GitHub’s “Download ZIP” source archive.
 
 For best results, I recommend installing **Anti-Lag for GAMMA** as well. It’s optional, not required, but the combination gave the best results in my testing.
 
