@@ -12,7 +12,7 @@ This is the lookup table for code ownership. **Enabled** means the configuration
 | [Ledge rays](#ledge-rays) | Enabled | `ledge_ray_reuse` | [ledge_rays](../gamedata/scripts/sloptimizer_ledge_rays.script) |
 | [Callback cache](#callback-cache) | Enabled | `callback_cache` | [callback_dispatch](../gamedata/scripts/sloptimizer_callback_dispatch.script) |
 | [Ray query inputs](#ray-query-inputs) | Enabled | `ray_query_inputs` | [ray_queries](../gamedata/scripts/sloptimizer_ray_queries.script) |
-| [Light scans](#light-scans) | Disabled | `light_scan_cache` | [light_flicker](../gamedata/scripts/sloptimizer_light_flicker.script) |
+| [Light scans](#light-scans) | Enabled | `light_scan_cache` | [light_flicker](../gamedata/scripts/sloptimizer_light_flicker.script) |
 | [Offline peer panel](#offline-peer-panel) | Enabled | `offline_peer_panel` | [party_session](../gamedata/scripts/sloptimizer_party_session.script) |
 | [Peer field cache](#peer-field-cache) | Enabled | `peer_field_cache` | [party_fields](../gamedata/scripts/sloptimizer_party_fields.script) |
 | [Artifact metadata](#artifact-metadata) | Enabled | `artifact_kind_cache` | [artifact_metadata](../gamedata/scripts/sloptimizer_artifact_metadata.script) |
@@ -22,7 +22,7 @@ This is the lookup table for code ownership. **Enabled** means the configuration
 | [Radiation](#radiation) | Enabled | `radiation_display` | [radiation_display](../gamedata/scripts/sloptimizer_radiation_display.script) |
 | [Task checks](#task-checks) | Enabled | `task_checks` | [task_checks](../gamedata/scripts/sloptimizer_task_checks.script) |
 | [Vision world light](#vision-world-light) | Disabled | `vision_light_frame` | [world_lighting](../gamedata/scripts/sloptimizer_world_lighting.script) |
-| [Visibility read reduction](#visibility-read-reduction) | Disabled | `visibility_reads` | [visibility](../gamedata/scripts/sloptimizer_visibility.script) |
+| [Visibility read reduction](#visibility-read-reduction) | Enabled | `visibility_reads` | [visibility](../gamedata/scripts/sloptimizer_visibility.script) |
 | [Device read reduction](#device-read-reduction) | Enabled | `device_updates` | [device_updates](../gamedata/scripts/sloptimizer_device_updates.script) |
 | [Lamp save buffers](#lamp-save-buffers) | Enabled | `lamp_save_buffers` | [lamp_save_buffers](../gamedata/scripts/sloptimizer_lamp_save_buffers.script) |
 
@@ -117,14 +117,14 @@ State/behavior: Assumes native setters copy their inputs. Queries still run. Che
 Source: [`sloptimizer_light_flicker.script`](../gamedata/scripts/sloptimizer_light_flicker.script)  
 Switch: `light_scan_cache`  
 Component ID: `light_scans`  
-Default: **Disabled - see [AI audit](AI-REVIEW.md)**  
+Default: **Enabled only for a recognized implementation**  
 Required modules: `bind_light_furniture`
 
 * `bind_light_furniture.need_flicker`
 
-Wrap need_flicker with a per-lamp cache and an optional shared negative spatial scan. Reduce repeated nearby-object searches and classification work across lamps.
+Replace the recognized need_flicker body with a live scan using retained visit/scan closures. Scan the same radius on every call, check current class membership and alive state, and read the current switch. This removes callback allocation, not nearby-object searches.
 
-State/behavior: Results can be stale for up to 100 ms by default. Emission bypasses the outer cache; not every switch transition does. Positive broad scans fall back to exact checks. Only the first 64 shared negative results are shadow-checked; a detected mismatch disables that shortcut, not the outer cache.
+State/behavior: No TTL, per-lamp result cache, shared negative cache or classification-result cache. Emission follows the original early return. Re-entry uses the original function; protected scan errors clear the active flag and are rethrown. Executable matching includes the nested original callback. The iterator must consume callbacks synchronously.
 
 ## Offline peer panel
 
@@ -259,15 +259,15 @@ State/behavior: A second lighting change within the same engine frame is not obs
 Source: [`sloptimizer_visibility.script`](../gamedata/scripts/sloptimizer_visibility.script)  
 Switch: `visibility_reads`  
 Component ID: `visibility_read_reduction`  
-Default: **Disabled - see [AI audit](AI-REVIEW.md)**  
+Default: **Enabled only for a recognized implementation**  
 Required modules: `visual_memory_manager`, `stealth_mcm`, `camp_lum`, `level_weathers`
 
 * `visual_memory_manager.get_visible_value`
 * `visual_memory_manager.get_visible_value::orig`
 
-Replace the reviewed visibility body, or replace only the orig upvalue inside the reviewed xrRazom wrapper. Skip flashlight lookups whose results cannot be used by the current branch.
+Recognize the original function by its LuaJIT instructions, constants and upvalue names, then select the matching Stealth Crash Fix or Atmospherics formula variant. Skip unused flashlight lookups. Both reviewed xrRazom load-time per-player rewrites and its outer wrapper are retained, along with live private state.
 
-State/behavior: The body contains the Stealth Crash Fix formulas, which do not match the installed Atmospherics variant. Its old filename/line guard accepts both. Do not enable this component without fixing version matching and preserving the winning upstream formula. The multiplayer wrapper is retained, but that alone does not establish compatible detection behavior.
+State/behavior: Unsupported bodies or unavailable introspection skip without assignment. Recognition is not just a filename/line check. Tests compare both upstream variants; tiny JIT rounding differences can remain. This does not establish exact native detection-threshold equivalence in every encounter.
 
 ## Device read reduction
 
@@ -299,7 +299,7 @@ State/behavior: Every condition write still happens. The reviewed manager copies
 
 ## Defaults and isolation
 
-Active defaults: marker full-check intervals come from the original marker; the limb display interval is 33 ms; party polling and field refresh are 500 ms. Dormant settings: lamp caching would use 100 ms and world lighting would cache one frame if their disabled components were enabled. See [configuration](CONFIGURATION.md).
+Active defaults: marker full-check intervals come from the original marker; the limb display interval is 33 ms; party polling and field refresh are 500 ms. World lighting would cache one frame if its disabled component were enabled. The live lamp scan ignores the legacy interval/shared-cache settings. See [configuration](CONFIGURATION.md).
 
 Use the named switch to disable a component, or add its component ID to `disabled_components` in the configuration file. Restart after changing it. Visibility lookups and world-light caching have independent switches (`visibility_reads` and `vision_light_frame`), as do device updates.
 

@@ -59,4 +59,6 @@ The code patches live Lua functions; it does not rewrite the upstream files on d
 
 Runtime behavior lives in `gamedata/scripts`. The registry defines installation order and observation targets; configuration defines defaults. Test JSON files describe fixtures, and docs explain the contracts. They do not generate the runtime code. `tools/build_zip.py` packages existing files rather than generating replacements.
 
-The three disabled lighting/visibility components remain in the source for review. Their presence does not mean they are active. See [configuration](CONFIGURATION.md) and [diagnostics](DIAGNOSTICS.md).
+World-light frame caching remains disabled. The old shared lamp-scan helper is retained as unused source; the current lamp installer does not call it. Visibility and lamp scan installers now compare executable bodies, including constants and nested callback prototypes, and skip unsupported versions. See [configuration](CONFIGURATION.md) and [diagnostics](DIAGNOSTICS.md).
+
+The compatibility reference body in the visibility module is data used to recognize upstream code, not a second installed implementation. Update a reference only after reviewing the complete upstream change and its tests. `sloptimizer_function_binding.same_implementation` performs the protected, fail-closed comparisons.

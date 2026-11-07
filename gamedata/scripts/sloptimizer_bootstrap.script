@@ -1,6 +1,6 @@
 -- Bootstrap only: component algorithms live in their own modules.
 -- Registry: sloptimizer_registry.script. Review guide: docs/PATCHES.md.
-local VERSION = '2.10.1-readable'
+local VERSION = '2.10.2-readable'
 local started, first = false, nil
 local results = {}
 

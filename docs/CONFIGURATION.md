@@ -26,15 +26,17 @@ These are alternative ways to disable a component. A true `disabled_components` 
 | Setting | Shipped value | Effect |
 | --- | --- | --- |
 | `injury_display_interval_ms` | 33 | Limb display refresh interval; health calculations continue on the original update path. |
-| `light_scan_interval_ms` | 100 | Dormant while `light_scan_cache = false`. Would control lamp-result cache lifetime. |
-| `shared_light_scan` | true | Dormant while `light_scan_cache = false`; not an independently installed component. |
+| `light_scan_interval_ms` | 100 | Legacy field; ignored by the repaired live lamp scan. |
+| `shared_light_scan` | false | Legacy field; the repaired lamp installer does not use the shared scan helper. |
 | `diagnostic_timing_targets` | `{}` | No timing wrappers installed. See [diagnostics](DIAGNOSTICS.md). |
 
 Marker semantic-check intervals come from the marker implementation. Party-session polling and party-panel updates use 500 ms in their implementations; they are not config fields in this file.
 
 ## Lighting defaults
 
-Keep `visibility_reads`, `vision_light_frame`, and `light_scan_cache` false. Their experimental implementations are retained for inspection, not recommended opt-ins. The [AI audit](AI-REVIEW.md) explains the formula mismatch and cache freshness risks. `lamp_save_buffers = true` is separate: it reuses save input storage while writing current condition values.
+Keep `vision_light_frame = false`: shared world brightness is read through the original helper. `visibility_reads = true` now applies only to an instruction/constant-matched original and selects its matching formula variant; unsupported bodies skip. `light_scan_cache = true` is a legacy switch name that now enables callback reuse with a **live scan on every call**, not a cache. The old scan interval and shared-cache fields are unused. `lamp_save_buffers = true` remains separate and writes current condition values.
+
+See the [AI audit and repair](AI-REVIEW.md) for scope and remaining limits.
 
 ## Migrating from older versions
 
@@ -45,6 +47,6 @@ Keep `visibility_reads`, `vision_light_frame`, and `light_scan_cache` false. The
 | `v2_projection` | `marker_projection` |
 | `v2_radiation` | `radiation_display` |
 | `v2_task_checks` | `task_checks` |
-| `native_read_reduction` | Split into `visibility_reads` and `device_updates`; retain the new disabled visibility default. |
+| `native_read_reduction` | Split into `visibility_reads` and `device_updates`; use the current guarded visibility implementation rather than copying an old script. |
 
 The module migration map is in [`tests/module-migration.json`](../tests/module-migration.json). Do not copy old `gamma_opt_*.script` modules into this package. Some object fields still have a `gamma_opt_` prefix; those are cached state used by the current code, not old files to install.

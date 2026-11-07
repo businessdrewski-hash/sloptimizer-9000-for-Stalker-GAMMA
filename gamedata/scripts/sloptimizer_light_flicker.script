@@ -1,150 +1,80 @@
--- Combines a per-lamp flicker cache with optional shared nearby-object scans.
--- Cache lifetime is bounded by the configured interval. Emissions bypass the outer cache.
+-- Runs the original nearby-object scan on every call. No TTL or shared result cache.
+-- Reuses only the synchronous visit closure; class membership and alive state stay live.
+local installed = false
+local reference_body = [====[
+function(lamp_obj)
+	
+	-- Flicker on Emission Wave or Vortex
+	if (level_environment.get_light_flicker()) then return true end
+	
+	-- Flicker if Psi Mutant nearby
+	local psi_influence = false
+	local function iterate_func(obj)
+		if (obj and psi_influence_clsid[obj:clsid()] and obj:alive()) then 
+			psi_influence = true
+			return true
+		end
+	end
 
-local light_installed = false
--- Reuse the synchronous scan callback and immutable object classification.
--- Weak keys do not retain nearby objects. Alive/position/emission stay live.
-function make_psi_scan(original, kinds, get_switch)
-    local classes = setmetatable({}, { __mode = 'k' })
+	level.iterate_nearest(lamp_obj:position(), 15, iterate_func)
+	
+	if psi_influence then return true end
+	
+	return switch
+end
+]====]
+
+function make_live_scan(original, get_kinds, get_switch)
     local active, found = false, false
     local function visit(obj)
-        if found then
-            return true
-        end -- No remaining classification can change a positive scan.
-        if not obj then
-            return
-        end
-        local psi = classes[obj]
-        if psi == nil then
-            psi = not not kinds[obj:clsid()]
-            classes[obj] = psi
-        end
-        if psi and obj:alive() then
+        if obj and get_kinds()[obj:clsid()] and obj:alive() then
             found = true
             return true
         end
     end
+    local function scan(lamp)
+        level.iterate_nearest(lamp:position(), 15, visit)
+    end
     return function(lamp)
-        if active then
-            return original(lamp)
-        end
-        if level_environment.get_light_flicker() then
-            return true
-        end
-        if get_switch() == true then
-            return true
-        end -- Result is already guaranteed.
-        local pos = lamp:position()
-        active = true
-        found = false
-        local ok, err = pcall(level.iterate_nearest, pos, 15, visit)
+        if active then return original(lamp) end
+        if level_environment.get_light_flicker() then return true end
+        active, found = true, false
+        local ok, err = pcall(scan, lamp)
         active = false
-        if not ok then
-            error(err, 0)
-        end
-        return found or get_switch()
+        if not ok then error(err, 0) end
+        if found then return true end
+        return get_switch()
     end
 end
-local function scan_adapter(fn, interval)
-    local kinds, switch_index
+
+function install()
+    if installed then return true, 'already active' end
+    local mod = bind_light_furniture
+    local original = mod and mod.need_flicker
+    local info = type(original) == 'function' and debug.getinfo(original, 'S')
+    if not info or not info.source:match('bind_light_furniture%.script$') or info.linedefined ~= 33 or info.lastlinedefined ~= 52 then
+        return false, 'light flicker implementation differs'
+    end
+    local probe = sloptimizer_function_binding.bind_body(original, reference_body)
+    local ok, matches = pcall(sloptimizer_function_binding.same_implementation, original, probe)
+    if not probe or not ok or not matches then return false, 'unrecognized light scan body; original retained' end
+    local kinds, kinds_slot, switch_slot
     for i = 1, 32 do
-        local name, value = debug.getupvalue(fn, i)
-        if not name then
-            break
-        end
-        if name == 'psi_influence_clsid' and type(value) == 'table' then
-            kinds = value
-        end
-        if name == 'switch' then
-            switch_index = i
-        end
+        local name, value = debug.getupvalue(original, i)
+        if not name then break end
+        if name == 'psi_influence_clsid' and type(value) == 'table' then kinds = value; kinds_slot = i end
+        if name == 'switch' then switch_slot = i end
     end
-    if not kinds or not switch_index then
-        return fn
-    end
-    local get_switch = function()
-        local _, v = debug.getupvalue(fn, switch_index)
-        return v
-    end
-    local fallback = make_psi_scan(fn, kinds, get_switch)
-    if
-        sloptimizer_config
-        and sloptimizer_config.shared_light_scan
-        and level
-        and type(level.iterate_nearest) == 'function'
-    then
-        local d = device()
-        local nearest = type(level.nearest_object) == 'function' and level.nearest_object or nil
-        return sloptimizer_shared_light_scan.make_scan(
-            fallback,
-            kinds,
-            get_switch,
-            function()
-                return d:time_global()
-            end,
-            interval,
-            {
-                nearest = nearest,
-                anypsi = sloptimizer_shared_light_scan.make_presence_query(kinds, level.iterate_nearest),
-                vector = vector,
-                emission = level_environment.get_light_flicker,
-            }
-        ),
-            nearest and 'native class query' or 'shared nearby iterator'
-    end
-    return fallback, false
-end
-local make_clock = sloptimizer_device_clock.make_clock
-function make_light_cache(original, interval)
-    local cache = setmetatable({}, { __mode = 'k' })
-    local clock = make_clock()
-    return function(obj)
-        -- Emission/vortex changes are not delayed by the cache.
-        if level_environment.get_light_flicker() then
-            return true
-        end
-        local now = clock()
-        local c = cache[obj]
-        if c and now >= c.time and now < c.expires then
-            return c.value
-        end
-        local value, expires = original(obj)
-        if not c then
-            c = {}
-            cache[obj] = c
-        end
-        c.time = now
-        c.value = value
-        c.expires = math.min(now + interval, expires or (now + interval))
+    if not kinds or not switch_slot then return false, 'light scan state unavailable' end
+    local function switch_value()
+        local _, value = debug.getupvalue(original, switch_slot)
         return value
     end
-end
--- Installation: validate the upstream implementation before changing it.
-function install(interval)
-    if light_installed then
-        return true, 'already active'
+    local function kind_values()
+        local _, value = debug.getupvalue(original, kinds_slot)
+        return value
     end
-    local mod = bind_light_furniture
-    local fn = mod and mod.need_flicker
-    local d = type(fn) == 'function' and debug.getinfo(fn, 'S')
-    if
-        not d
-        or not d.source:match('bind_light_furniture%.script$')
-        or d.linedefined ~= 33
-        or d.lastlinedefined ~= 52
-    then
-        return false, 'light flicker implementation differs from reviewed build'
-    end
-    interval = math.max(1, math.min(250, tonumber(interval) or 100))
-    local scan, shared = scan_adapter(fn, interval)
-    mod.need_flicker = make_light_cache(scan, interval)
-    light_installed = true
-    return true,
-        'flicker cache '
-            .. interval
-            .. ' ms; '
-            .. (
-                shared and (shared .. ' armed with shadow validation')
-                or 'shared scan disabled; prior scan retained'
-            )
+    mod.need_flicker = make_live_scan(original, kind_values, switch_value)
+    installed = true
+    return true, 'live scan on every call; reusable visit callback; no cached lighting results'
 end

@@ -1,33 +1,43 @@
-# Lighting and AI visibility audit
+# Lighting and visibility compatibility
 
-## Decision
+## What 2.10.2 changes
 
-This readable release defaults `visibility_reads`, `vision_light_frame`, and `light_scan_cache` to false. The bootstrap leaves the original visibility function, its multiplayer wrapper/upvalue, world-light helper, and lamp-flicker query untouched. The experimental modules remain available for developers, but enabling them is not recommended based on these findings. The shared light scan is dormant while its parent light-scan component is disabled.
+Visibility and lamp optimization are enabled again with different safeguards. The world-light frame cache remains disabled. This is not a blanket restoration of the old lighting changes.
 
-## Visibility replacement: confirmed compatibility defect
+### Visibility: preserve the winning formula
 
-The installed Atmospherics and GAMMA Stealth Crash Fix variants both define `get_visible_value` at line 28. The old filename/line guard accepted either. The replacement was based on the Stealth Crash Fix formula: division by 3.02 and a standard-night multiplier of 2. Atmospherics uses 2.35 and 4. Replacing it can change detection buildup even though the flashlight shortcut itself preserves the reviewed branch logic. The current normal MO2 modlist lists enabled Atmospherics above enabled Stealth Crash Fix in its reverse-priority list. A live module source path alone cannot distinguish them because MO2 virtualizes both to the same path.
+The earlier replacement assumed Stealth Crash Fix's divisor 3.02 and standard-night multiplier 2. Atmospherics uses 2.35 and 4. Both functions had the same source path and line numbers, so that guard could accept a function whose detection tuning differed.
 
-The expanded tests compared 30,000 calls against each installed original (60,000 total), including the actual xrRazom wrapper with simulated avatar-call support. They varied day/night boundaries, underground/camp lighting, torches, handheld lights, NPC classes, crouching, motion, firing, memory transitions, marking and missing NPCs. Private state was changed through Lua closures with JIT enabled.
+The repaired installer compiles reference bodies and compares LuaJIT instructions, constants, function shape, and upvalue names. It selects the replacement containing the matching formulas only after recognition. Unsupported code or unavailable introspection skips installation. The instruction check excludes the mutable function-entry opcode; nested callback prototypes, where present, are compared recursively. The original function's environment and private state cells remain shared. Recognition supports plain and xrRazom-rewritten versions of both formula variants. The reviewed xrRazom outer wrapper is preserved.
 
-Stealth Crash Fix had no differences outside a 1e-12 numerical tolerance; 45 exact comparisons differed by rounding. Atmospherics had 7,764 differences beyond that tolerance. These are fixture results, not a percentage of live encounters. The test compares output, memory/debug side effects and wrapper calls. It does not model the whole native detection accumulator or network implementation.
+The compatibility reference is not executed for gameplay. It should be updated only after reviewing upstream changes, not to bypass a skipped component.
 
-## World-light frame cache: conditional behavior difference
+### Lamps: reuse storage, not decisions
 
-The original helper reads current weather sun and hemisphere colors. If those change between two calls in the same frame, the cached helper keeps the earlier value. A controlled input transition reproduced different detection increments, and advancing the frame restored the live value. The public engine source reads CurrentEnv and exposes weather setters; it does not establish the update ordering of the closed multiplayer build. We have not established that this scenario occurs in normal gameplay, so the cache is disabled rather than described as behavior-identical.
+The revised lamp path retains its visit and scan closures. It still calls the original-radius nearby-object scan on every request, reads current class membership and alive state, and reads the current flicker switch. It does not cache scan outcomes or object classifications. Re-entry falls back to the original; scan failures reset its busy state before propagating the error. Its installer also verifies the original body and nested callback.
 
-## Lamp-flicker cache: bounded transition delay
+This preserves the original transition timing instead of accepting the old 100 ms delay. The legacy `light_scan_cache` name enables this live path; interval/shared-cache settings are ignored. The old shared spatial scan helper is not installed.
 
-A controlled psi-influence transition at 50 ms remained cached false until the 100 ms expiry; the emission bypass still responded immediately. The upstream caller starts/stops an actual lamp color animator from this result. That demonstrates different lamp timing, not a measured NPC detection change. The cache is disabled to preserve the original query timing.
+Lamp-save buffer reuse remains enabled separately. It writes the current fuel condition on every original save call and falls back if the data manager changes.
 
-## Validation limits
+### World lighting: original helper retained
 
-The conservative defaults are checked through the actual bootstrap: all three targets and the multiplayer wrapper's original-function reference remain unchanged. Portable regression checks are included. This review did not run a new in-game combat/stealth trial and does not claim a new FPS result. Other components remain subject to their documented assumptions. The audit did not modify installed game files or engine binaries. This release includes the resulting conservative defaults.
+The old once-per-frame cache can reuse a stale value if weather colors change during the frame. We have not established a useful replacement that both avoids those reads and guarantees freshness on this engine. `vision_light_frame` stays false.
 
-## Reproduce the differential audit
+## Evidence
 
-Install `tests/requirements.txt`, then run `python tools/audit_visibility.py --mods-root "path/to/MO2/mods" --output ai-audit-results.json`. This uses the two named installed upstream scripts and xrRazom wrapper as inputs; their hashes are recorded. It does not launch or alter the game. The fixtures exercise native-facing calls through mocks. A future upstream version can change these assumptions, so review failures instead of changing expected values blindly.
+The revised visibility installer was tested against both actual installed upstream files in 60,000 simulated calls, with the xrRazom wrapper and simulated avatar support. It exercised light states, day/night boundaries, crouching/movement, firing, visibility memory, marking and missing NPCs. Both variants had zero output differences beyond 1e-12 relative/absolute tolerance, with matching compared memory/debug/wrapper state. Tiny exact floating-point differences remain; the tolerance is a numerical comparison tool, not a guarantee about a native threshold at a boundary. Input hashes and counts are in `tests/ai-review-results.json`.
 
-## Retained lamp optimization
+1,000 live lamp comparisons matched decisions and getter/scan order. Further checks cover class-table replacement, errors, re-entry, altered same-line functions, and unavailable introspection. Lamp saves have a separate 1,000-write comparison.
 
-`lamp_save_buffers` stays enabled. It reuses a per-lamp input table for save-data updates; it does not cache brightness, flicker decisions, fuel values or detection results. Each save still writes the current condition through the original synchronous data manager. If that manager is replaced, the wrapper falls back to the original save function. The focused regression test checks changing fuel, separate lamps, retained save snapshots and manager replacement.
+These fixtures model native-facing inputs, not whole combat encounters, engine scheduling or connected-peer replication. No new FPS claim is made. See VALIDATION.md for any game startup check.
+
+## Reproduce
+
+Install `tests/requirements.txt`, then run `python tests/run_checks.py`. For the separate upstream visibility audit, run `python tools/audit_visibility.py --mods-root "path/to/MO2/mods" --output ai-audit-results.json`. The tool reads the named installed originals and records hashes; it does not launch or change the game.
+
+## xrRazom load-time rewrites
+
+The multiplayer engine applies `xrr_gamma_ai.ltx` before compilation. Its visibility rules retain memory of multiple targets, key marking by observer/target when peers are present, and clear stale marking on skipped target branches. Keeping the outer avatar wrapper alone does not preserve these inner changes. The first strict in-game check rejected this rewritten body (774 versus 744 instructions); the guard was not relaxed. A separate recognized body was added with those exact rewrite rules retained. Unsupported future rewrites still skip.
+
+An additional 60,000 calls used the actual installed rewrite rules, peer counts 0/1/2, alternating actor/avatar targets, and the reviewed wrapper. Both variants matched within numerical tolerance with matching compared state. The combined audits cover 120,000 calls; these are fixture counts, not live encounters. `tests/peer-visibility-results.json` contains the second result set. Add `--peer-rewrites` to the audit command to reproduce that mode. Connected-client combat still needs broader testing.

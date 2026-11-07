@@ -1,5 +1,5 @@
--- AI review: light_scan_cache, vision_light_frame and visibility_reads are disabled.
--- See docs/AI-REVIEW.md before considering any opt-in.
+-- Live light scans and recognized visibility variants are enabled.
+-- World-light frame caching remains disabled; see docs/AI-REVIEW.md.
 -- Edit switches here, then restart the game. See docs/PATCHES.md for exact targets.
 -- Set an individual component ID to true here to disable only that component.
 disabled_components = {}
@@ -7,11 +7,11 @@ disabled_components = {}
 -- Rendering and interaction
 markers = true
 marker_projection = true
-light_scan_cache = false
+light_scan_cache = true
 light_scan_interval_ms = 100
-shared_light_scan = true
+shared_light_scan = false
 vision_light_frame = false
-visibility_reads = false
+visibility_reads = true
 
 -- HUD displays
 injury_display = true

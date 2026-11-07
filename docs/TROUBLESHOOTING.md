@@ -19,7 +19,7 @@ Disable only the suspected component, restart, and repeat the same action in the
 | Item condition, artifact radiation or device power | Item update, Artifact update, Artifact metadata and Device read reduction |
 | Climbing or geometry queries | Ledge rays and Ray query inputs |
 | Task completion or broad callback issues | Task checks and Callback cache |
-| NPC detection or lamp transitions | First confirm the three disabled lighting/visibility components are still disabled; see the AI audit. |
+| NPC detection or lamp transitions | Confirm world-light caching is disabled; inspect which visibility variant activated and isolate Visibility read reduction or Light scans with a restart. |
 
 ## A component skipped
 

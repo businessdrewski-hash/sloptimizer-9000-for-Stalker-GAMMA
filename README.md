@@ -1,10 +1,10 @@
 # Sloptimizer 9000 for Stalker GAMMA
 
-**[Download v2.10.1-readable for MO2](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/download/v2.10.1-readable/Sloptimizer-9000-2.10.1-readable.zip)**
+**[Download v2.10.2-readable for MO2](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/download/v2.10.2-readable/Sloptimizer-9000-2.10.2-readable.zip)**
 
 Sloptimizer reduces repeated Lua work and temporary allocations in supported GAMMA scripts. This experimental release organizes each optimization into a named module with independent configuration and startup reporting. It does not replace engine files or change GC settings.
 
-The visibility replacement, world-light frame cache and lamp-flicker result cache are **disabled by default** after the lighting audit. Lamp-save buffer reuse remains enabled. See [what the audit found](docs/AI-REVIEW.md).
+The repaired visibility optimization preserves recognized Atmospherics or Stealth Crash Fix formulas, including xrRazom load-time per-player rewrites. Unrecognized bodies are skipped. Lamp scans reuse a callback but check current conditions on every call; no lamp-result cache is used. World-light frame caching stays **disabled**. See [the lighting compatibility work](docs/AI-REVIEW.md).
 
 ## For modders
 
@@ -32,6 +32,6 @@ To remove the pack, disable it in MO2 and restart. To migrate custom settings, c
 
 ## Scope and credits
 
-This build has portable checks and a prior readability-build startup test; the conservative lighting defaults have not had a new FPS benchmark or exhaustive live combat/co-op test. Historical benchmark assets in the repository describe earlier versions. See [validation](docs/VALIDATION.md) and [release notes](docs/RELEASE-NOTES.md).
+This build has portable behavior checks; validation details and any game check are recorded below. No new FPS improvement or exhaustive live combat/co-op coverage is claimed. Historical benchmark assets in the repository describe earlier versions. See [validation](docs/VALIDATION.md) and [release notes](docs/RELEASE-NOTES.md).
 
 Credit to the original GAMMA and xrRazom mod authors whose functions this pack adapts. Anti-Lag is by Jack_Harris. Original mod logic retains its original authorship; this package does not grant new rights over it.

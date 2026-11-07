@@ -1,19 +1,15 @@
 # Validation scope
 
-## Current 2.10.1-readable configuration
+## Current 2.10.2-readable checks
 
-The portable runner passed dependency/compatibility scenarios, independent component switches, diagnostic tests, shared-state checks, and 1,000 lamp-save comparisons. The shipping-default check confirms that visibility, the multiplayer wrapper's original-function reference, world lighting and lamp-flicker queries remain untouched by their disabled components.
+The portable suite passed optional-component and isolation cases, diagnostic lifecycle checks, shared-state tests, 1,000 lamp-save comparisons and 1,000 live lamp-scan comparisons. Altered same-line visibility/lamp functions and unavailable introspection were rejected. World-light frame caching stays disabled.
 
-The [AI audit](AI-REVIEW.md) compared 60,000 calls across two upstream visibility variants. It found a formula mismatch with Atmospherics and controlled cache-freshness differences. These tests use simulated engine inputs; they are not a live combat or network test.
+The upstream visibility audit compared 60,000 calls against the two installed originals. A second 60,000-call audit applied the actual xrRazom rewrite rules and alternated player targets with peer counts 0/1/2. Both variants matched within 1e-12 relative/absolute tolerance and matched compared memory/debug/wrapper state. This tolerance separates floating-point rounding from larger differences; it is not a gameplay-impact threshold. See AI-REVIEW.md and the JSON results under tests.
 
-## Earlier readability build
+## Game checks
 
-The 2.10.0-readable refactor also underwent local behavior suites covering callback ordering, marker projection, artifact transitions, visibility and device updates. Those suites are not all included in this ZIP.
+Initial isolated runs verified the live lamp scan and correctly skipped unrecognized xrRazom visibility instructions. Diagnostic inspection identified the engine's load-time rewrites; the current candidate recognizes those separately. The final 60-second isolated run completed with Atmospherics + xrRazom visibility and live lamp scans ACTIVE, world-light caching DISABLED, and no fatal or startup errors. The ledge component skipped its unsupported implementation. All 26 runtime files match that run. Temporary test files were restored after exit; no peers were connected. See `tests/live-validation.json`.
 
-One 60-second in-game activation/stability check on GAMMA/xrRazom with Anti-Lag completed. Eighteen components activated; ledge optimization skipped an incompatible implementation. No crash or startup diagnostic error was reported. That build still had the three components subsequently disabled in 2.10.1.
+## Limits
 
-## What remains unverified
-
-There is no new FPS comparison for the conservative 2.10.1 defaults, no exhaustive combat/stealth trial, and no claim that connected co-op behavior is fully covered. ACTIVE means installation succeeded, not that all gameplay is validated. Historical performance graphs describe earlier versions.
-
-Documentation-only revisions do not change runtime scripts. Follow [development](DEVELOPMENT.md) to run the included checks or build the ZIP, and [troubleshooting](TROUBLESHOOTING.md) when behavior differs.
+There is no controlled FPS comparison for this release and no exhaustive combat, stealth or connected-client test. The older benchmark charts describe earlier versions. ACTIVE means an installer succeeded, not that all gameplay has been validated. The fixture harness models engine-facing inputs; it does not implement the whole native detection accumulator or networking.

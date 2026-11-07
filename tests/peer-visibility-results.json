@@ -1,0 +1,33 @@
+{
+  "visibility": [
+    {
+      "source": "G.A.M.M.A. Stealth Crash Fix",
+      "sha256": "36f611e3d9018c76e205b542bef2ed2d1130198ce60e9ab51c65cd5232db88f5",
+      "comparisons": 30000,
+      "exact_mismatches": 37,
+      "material_mismatches": 0,
+      "first_difference": {
+        "case": 258,
+        "step": 0,
+        "wrapped": false,
+        "original": 6888920.898930192,
+        "replacement": 6888920.898930194
+      }
+    },
+    {
+      "source": "290- Atmospherics Shaders Weathers and Reshade Latest - Hippobot",
+      "sha256": "a9e8414c9fb9b17ab79dd16222a31d14295b96d32fa592be5bbde8bdbc5d4e0c",
+      "comparisons": 30000,
+      "exact_mismatches": 22,
+      "material_mismatches": 0,
+      "first_difference": {
+        "case": 312,
+        "step": 0,
+        "wrapped": false,
+        "original": 0.0015265577041202322,
+        "replacement": 0.0015265577041202324
+      }
+    }
+  ],
+  "scope": "Actual xrRazom rewrite rules; simulated peer counts 0/1/2 and alternating actor/avatar targets; real outer wrapper with simulated avatar API. Not a connected-client combat test."
+}

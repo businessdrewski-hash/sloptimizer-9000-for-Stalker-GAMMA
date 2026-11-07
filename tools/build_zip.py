@@ -6,7 +6,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
 parser = argparse.ArgumentParser()
-parser.add_argument('--output', type=Path, default=ROOT.parent / 'Sloptimizer-9000-2.10.1-readable.zip')
+parser.add_argument('--output', type=Path, default=ROOT.parent / 'Sloptimizer-9000-2.10.2-readable.zip')
 args = parser.parse_args()
 files = [ROOT / 'README.md']
 for directory in ('gamedata', 'docs', 'tests', 'review', 'tools', 'assets', 'benchmarks'):

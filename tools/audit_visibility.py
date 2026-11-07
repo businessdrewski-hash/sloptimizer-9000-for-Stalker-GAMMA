@@ -7,6 +7,7 @@ PACK=ROOT
 import argparse
 parser=argparse.ArgumentParser()
 parser.add_argument('--mods-root',type=Path,required=True)
+parser.add_argument('--peer-rewrites',action='store_true',help='Apply installed xrRazom load-time rewrites and alternate player targets')
 parser.add_argument('--output',type=Path,default=Path('ai-audit-results.json'))
 args=parser.parse_args()
 MODS=args.mods_root
@@ -37,7 +38,7 @@ function object(id,kind)
  active_detector=function()return c.detector end,get_total_weight=function()return c.weight_value end}
 end
 function configure(t)
- c=t;events={};reads=0
+ c=t;events={};reads=0;XrrPeerCount=c.peers or 0
  actor=object(1,'stalker');npc=object(2,c.npc_kind);if c.no_npc then npc=nil end
  who=c.target_kind=='actor' and actor or object(3,c.target_kind)
  db={actor=actor,storage=c.storage and {[2]={active_scheme=c.scheme}} or {}}
@@ -78,7 +79,7 @@ def vm(optimized,wrapped):
     # debug.setupvalue writes after JIT compilation are not a faithful gameplay fixture.
     state_access='''
 function reset() vision_memory={};marked={};actor_marked=0;summ=0 end
-function set_live() is_r1=c.r1;jacketmult=c.jacket;pewpewmult=c.shot;get_camo_k=c.camo;marked=c.mark and {[2]=true} or {} end
+function set_live() is_r1=c.r1;jacketmult=c.jacket;pewpewmult=c.shot;get_camo_k=c.camo;marked=c.mark and {[2]=true,[2*65536+1]=true} or {} end
 '''
     v.execute("assert(loadstring(...,'@visual_memory_manager.script'))()",original+state_access)
     v.execute('original_fn=get_visible_value;visual_memory_manager=_G;wrapper_calls=0')
@@ -98,6 +99,11 @@ for i in range(2500):
 reports=[]
 for source in (MODS/'G.A.M.M.A. Stealth Crash Fix/gamedata/scripts/visual_memory_manager.script',SOURCE):
  original='\n'.join(source.read_text(encoding='utf-8-sig').splitlines()[:211])
+ if args.peer_rewrites:
+  import re
+  rewrite=(MODS/'xrRazom Co-op/gamedata/configs/xrr_rewrites/xrr_gamma_ai.ltx').read_text(encoding='utf-8-sig').split('[visual_memory_manager]',1)[1]
+  for a,b in re.findall(r'from_\d+\s*=\s*"([^"\n]*)"\s*\n\s*to_\d+\s*=\s*"([^"\n]*)"',rewrite):original=original.replace(a,b)
+
  comparisons=0;mismatches=0;material=0;first_difference=None
  for wrapped in (False,True):
     a,b=vm(False,wrapped),vm(True,wrapped)
@@ -105,7 +111,7 @@ for source in (MODS/'G.A.M.M.A. Stealth Crash Fix/gamedata/scripts/visual_memory
         for v in (a,b):v.globals().reset(v.globals().original_fn)
         # Live transitions exercise shared upvalues and vision-memory accumulation.
         for step in range(6):
-            d=dict(c,sees=step in (0,3),torch_on=step%2==0,detector=step%2!=0,shot=7 if step==2 else 0,now=100000+step*100,memory_age=c['memory_age']+step*100)
+            d=dict(c,peers=idx%3 if args.peer_rewrites else 0,target_kind=('actor' if step%2==0 else 'avatar') if args.peer_rewrites else c['target_kind'],sees=step in (0,3),torch_on=step%2==0,detector=step%2!=0,shot=7 if step==2 else 0,now=100000+step*100,memory_age=c['memory_age']+step*100)
             values=[]
             for v in (a,b):
                 v.globals().configure(v.table_from(d));v.globals().set_live(v.globals().original_fn)
@@ -137,11 +143,8 @@ assert cached_detection!=live_detection
 v.execute('frame=2');assert v.globals().cached()==live
 v.execute('frame=nil;c.sun=.2;c.hemi=.2');assert v.globals().cached()==v.globals().lights_lum()
 
-v.execute('clock=0;psi=false;emission=false;device=function()return {time_global=function()return clock end}end;level_environment={get_light_flicker=function()return emission end};sloptimizer_device_clock={}')
-v.execute('local f=assert(loadstring(...));setfenv(f,setmetatable(sloptimizer_device_clock,{__index=_G}));f()', (PACK/'gamedata/scripts/sloptimizer_device_clock.script').read_text())
-v.execute((PACK/'gamedata/scripts/sloptimizer_light_flicker.script').read_text())
-v.execute('lamp={};original_flicker=function()return psi end;cached_flicker=make_light_cache(original_flicker,100);assert(cached_flicker(lamp)==false);clock=50;psi=true;assert(original_flicker(lamp)==true and cached_flicker(lamp)==false);emission=true;assert(cached_flicker(lamp)==true);emission=false;clock=100;assert(cached_flicker(lamp)==true)')
-report={'visibility':reports,'wrapper_sha256':hashlib.sha256(WRAPPER.read_bytes()).hexdigest(),'world_cache_same_frame_counterexample':{'cached_light':stale,'live_light':live,'cached_detection':cached_detection,'live_detection':live_detection},'lamp_cache':'A change from no psi influence to psi influence at 50 ms remains cached false until 100 ms; emission bypass works. This changes lamp-animation timing; downstream AI effect not measured.','scope':'Deterministic Lua differential tests with mocked engine inputs. Not live combat validation.'}
+assert all(x['material_mismatches']==0 for x in reports), reports
+report={'visibility':reports,'wrapper_sha256':hashlib.sha256(WRAPPER.read_bytes()).hexdigest(),'world_cache_same_frame_counterexample':{'cached_light':stale,'live_light':live,'cached_detection':cached_detection,'live_detection':live_detection},'scope':'Deterministic Lua differential tests with mocked engine inputs. Not live combat validation.'}
 args.output.parent.mkdir(parents=True,exist_ok=True)
 args.output.write_text(json.dumps(report,indent=2))
 print(json.dumps(report,indent=2))

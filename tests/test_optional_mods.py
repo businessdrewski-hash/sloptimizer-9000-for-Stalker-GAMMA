@@ -88,11 +88,11 @@ before_wrapper=wrapper;before_original=original
 before_light=visual_memory_manager.lights_lum;before_flicker=bind_light_furniture.need_flicker
 """)
 result=list(p.start().values())
-assert sum(': DISABLED - ' in x for x in result)==3,result
+assert sum(': DISABLED - ' in x for x in result)==1,result
 l.execute("""
 assert(visual_memory_manager.get_visible_value==before_wrapper)
 local name,value=debug.getupvalue(before_wrapper,1);assert(value==before_original)
 assert(visual_memory_manager.lights_lum==before_light)
 assert(bind_light_furniture.need_flicker==before_flicker)
 """)
-print('Shipping defaults preserve visibility, wrapper upvalue, world lighting and lamp query identities')
+print('Unsupported visibility/lamp fixtures remain untouched; world-light cache disabled')

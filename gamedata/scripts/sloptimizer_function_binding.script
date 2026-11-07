@@ -38,3 +38,37 @@ function bind_body(original, body, source_name)
     end
     return fn
 end
+
+-- Fail-closed executable compatibility check, including nested callback prototypes.
+function same_implementation(a, b)
+    local ok, util = pcall(require, 'jit.util')
+    if not ok then return false end
+    local ai, bi = util.funcinfo(a), util.funcinfo(b)
+    for _, key in ipairs({'bytecodes','gcconsts','nconsts','upvalues','params','isvararg','stackslots'}) do
+        if ai[key] ~= bi[key] then return false, key .. ': ' .. tostring(ai[key]) .. '/' .. tostring(bi[key]) end
+    end
+    if not ai.bytecodes then return false end
+    -- Entry opcode can change when JIT compilation occurs; the body must match.
+    for i = 1, ai.bytecodes - 1 do
+        if util.funcbc(a, i) ~= util.funcbc(b, i) then return false, 'instruction ' .. i .. ': ' .. tostring(util.funcbc(a,i)) .. '/' .. tostring(util.funcbc(b,i)) end
+    end
+    for i = 0, ai.nconsts - 1 do
+        if util.funck(a, i) ~= util.funck(b, i) then return false, 'numeric constant ' .. i end
+    end
+    for i = 1, ai.gcconsts do
+        local av, bv = util.funck(a, -i), util.funck(b, -i)
+        if type(av) ~= type(bv) then return false end
+        if type(av) == 'string' then
+            if av ~= bv then return false, 'string constant ' .. i end
+        else
+            -- Nested callback prototypes must match too. Unsupported constant types
+            -- fail through the caller's protected comparison rather than being accepted.
+            if not same_implementation(av, bv) then return false end
+        end
+    end
+    for i = 0, ai.upvalues - 1 do
+        if util.funcuvname(a, i) ~= util.funcuvname(b, i) then return false, 'upvalue ' .. i end
+    end
+    return true
+end
+

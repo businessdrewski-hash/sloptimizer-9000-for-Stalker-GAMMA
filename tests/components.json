@@ -117,9 +117,9 @@
     "targets": [
       "bind_light_furniture.need_flicker"
     ],
-    "mechanism": "Wrap need_flicker with a per-lamp cache and an optional shared negative spatial scan.",
-    "reason": "Reduce repeated nearby-object searches and classification work across lamps.",
-    "review": "Results can be stale for up to 100 ms by default. Emission bypasses the outer cache; not every switch transition does. Positive broad scans fall back to exact checks. Only the first 64 shared negative results are shadow-checked; a detected mismatch disables that shortcut, not the outer cache."
+    "mechanism": "Reuse the synchronous visit callback while scanning live each call.",
+    "reason": "Avoid repeated callback closure allocation.",
+    "review": "No cached decisions; body matching, re-entry fallback and error recovery; synchronous iterator required."
   },
   {
     "id": "offline_peer_panel",
@@ -294,9 +294,9 @@
       "visual_memory_manager.get_visible_value",
       "visual_memory_manager.get_visible_value::orig"
     ],
-    "mechanism": "Replace the reviewed visibility body, or replace only the orig upvalue inside the reviewed xrRazom wrapper.",
+    "mechanism": "Match executable body, then select the corresponding formula variant and preserve private state.",
     "reason": "Skip flashlight lookups whose results cannot be used by the current branch.",
-    "review": "Disabled by default: the old guard also accepts Atmospherics, whose detection formulas differ. See docs/AI-REVIEW.md."
+    "review": "Recognized Stealth Crash Fix and Atmospherics variants only; unsupported bodies skip."
   },
   {
     "id": "device_read_reduction",

@@ -29,9 +29,10 @@ The builder includes source, docs, tests and tools, excludes Python bytecode cac
 
 | Included check | Main coverage |
 | --- | --- |
-| `test_optional_mods.py` | Missing/unsupported modules, initializer fault isolation, individual switches, and preservation of disabled lighting targets. Its broad activation scenarios deliberately enable switches in fixtures; the shipping-default test is separate. |
+| `test_optional_mods.py` | Missing/unsupported modules, initializer fault isolation, individual switches, and preservation of disabled world lighting and unsupported visibility/lamp targets. Its broad activation scenarios deliberately enable switches in fixtures; the shipping-default test is separate. |
 | `test_diagnostics.py` | Return/error behavior, timing lifecycle, target ownership and unsupported timing cases. |
 | `test_split_modules.py` | Module loading, live clock fallback and mutable upvalue sharing. |
+| `test_lighting_contracts.py` | Live lamp decisions and read order, replaced state, re-entry, error recovery, and unknown-body rejection. |
 | `test_lamp_saves.py` | Original versus optimized writes, per-lamp state, saved snapshots and manager replacement. |
 
 The broader historical callback, artifact, marker and device suites used during development are not all bundled here. Do not interpret the portable runner as complete coverage of every optimization. See [validation](VALIDATION.md).
