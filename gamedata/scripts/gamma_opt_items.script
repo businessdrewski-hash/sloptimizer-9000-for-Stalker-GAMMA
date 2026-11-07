@@ -1,0 +1,50 @@
+-- Artifact kind metadata cache.
+
+local installed = false
+function make_kind_cache(original)
+    local absent = {}
+    local empty_default = {}
+    local nil_default = {}
+    local function clear()
+        empty_default = {}
+        nil_default = {}
+    end
+    local function get(typ, section, param, default)
+        if typ ~= 0 or param ~= 'kind' or type(section) ~= 'string' or (default ~= nil and default ~= '') then
+            return original(typ, section, param, default)
+        end
+        local cache = default == nil and nil_default or empty_default
+        local result = cache[section]
+        if result == nil then
+            result = original(typ, section, param, default)
+            cache[section] = result == nil and absent or result
+        end
+        if result == absent then
+            return nil
+        end
+        return result
+    end
+    return get, clear
+end
+function start()
+    if installed then
+        return true, 'already active'
+    end
+    local mod = zz_item_artefact
+    local class = item_artefact and item_artefact.artefact_binder
+    local fn = class and class.update
+    local d = type(fn) == 'function' and debug.getinfo(fn, 'S')
+    if not d or not d.source:match('zz_item_artefact%.script$') or d.linedefined ~= 129 then
+        return false, 'artifact update differs from reviewed build'
+    end
+    local env = getfenv(fn)
+    if env ~= mod or type(env.SYS_GetParam) ~= 'function' then
+        return false, 'artifact function environment differs'
+    end
+    local replacement, clear = make_kind_cache(env.SYS_GetParam)
+    env.SYS_GetParam = replacement
+    RegisterScriptCallback('on_option_change', clear)
+    RegisterScriptCallback('load_state', clear)
+    installed = true
+    return true, 'artifact kind metadata cached by section and default; gameplay updates unchanged'
+end

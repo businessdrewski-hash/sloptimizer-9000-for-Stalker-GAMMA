@@ -1,0 +1,61 @@
+-- Shared live clock accessor with a retained device wrapper.
+
+local installed = false
+function make_clock(d)
+    local read = assert(d.time_global)
+    return function()
+        return read(d)
+    end
+end
+function refresh_aliases(module, original, replacement)
+    if type(module) ~= 'table' then
+        return 0
+    end
+    local changed = 0
+    for _, fn in pairs(module) do
+        if type(fn) == 'function' then
+            local info = debug.getinfo(fn, 'S')
+            if info and info.source:match('drx_da_main%.script$') then
+                for i = 1, 100 do
+                    local name, value = debug.getupvalue(fn, i)
+                    if not name then
+                        break
+                    end
+                    if name == 'time_global' and value == original then
+                        debug.setupvalue(fn, i, replacement)
+                        changed = changed + 1
+                    end
+                end
+            end
+        end
+    end
+    return changed
+end
+
+function start()
+    if installed then
+        return true, 'already active'
+    end
+    local original = _G.time_global
+    local info = type(original) == 'function' and debug.getinfo(original, 'S')
+    if
+        not info
+        or not info.source:match('[/\\]_g%.script$')
+        or info.linedefined ~= 760
+        or info.lastlinedefined ~= 762
+    then
+        return false, 'time helper differs from reviewed device():time_global() wrapper'
+    end
+    local d = device()
+    if not d or type(d.time_global) ~= 'function' then
+        return false, 'engine clock unavailable'
+    end
+    _G.time_global = make_clock(d)
+    if _G.time_global == original then
+        return false, 'global clock replacement failed'
+    end
+    -- Do not rewrite anomaly-module upvalues: Anti-Lag may own that implementation.
+    local aliases = 0
+    installed = true
+    return true, 'retained live clock; refreshed anomaly clock aliases: ' .. tostring(aliases)
+end

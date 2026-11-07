@@ -1,0 +1,170 @@
+-- Artifact updates: reuse lookups while retaining gameplay calculations.
+
+local installed = false
+function make_artifact(env, in_actor_ruck, rad_tg_step, rad_factor)
+    return function(self, delta)
+        object_binder.update(self, delta)
+        local object = self._gamma_opt_artifact_object
+        if not object then
+            object = self.object
+            self._gamma_opt_artifact_object = object
+        end
+        local id = self._gamma_opt_artifact_id
+        local section = self._gamma_opt_artifact_section
+        if id == nil then
+            id = object:id()
+            section = object:section()
+            self._gamma_opt_artifact_id = id
+            self._gamma_opt_artifact_section = section
+        end
+        local condition = object:condition()
+
+        -- randomizer (first update)
+        local kind = SYS_GetParam(0, section, 'kind')
+        local kind_fits = kind and (kind == 'i_arty' or kind == 'i_arty_cont')
+        if not cond_t[id] and condition >= 1 and kind_fits then
+            local cond = (math.random(arti_min_eff, arti_max_eff) / 100)
+            if section == 'af_ah_f1' then
+                cond = 0.98
+            end
+            object:set_condition(cond)
+            condition = object:condition()
+            cond_t[id] = cond
+            pr('~randomizer set cond to: %s', r(cond))
+        end
+
+        -- if condition of stored artefact was changed by online transition / loading
+        if cond_t[id] and condition >= 1 then
+            -- set stored condition back
+            pr(
+                'condition changed from online/loading, prev: %s || curr: %s',
+                r(condition),
+                r(cond_t[id])
+            )
+            object:set_condition(cond_t[id])
+            condition = object:condition()
+        end
+
+        -- if condition was changed by other addons
+        if
+            (cond_t[id] and condition ~= cond_t[id])
+            or (not cond_t[id] and condition < 1)
+        then
+            pr(
+                'condition changed by other addons, prev: %s || curr: %s',
+                cond_t[id] and r(cond_t[id]) or 'nil',
+                r(condition)
+            )
+            -- update this condition
+            cond_t[id] = condition
+        end
+
+        -- calculate distance to artefact updated
+        if object:parent() then
+            dist_t[section] = false
+        else
+            local distance = db.actor:position():distance_to_sqr(object:position())
+            if distance then
+                dist_t[section] = distance
+            end
+        end
+
+        if self.first_call == true then
+            local se_obj = alife_object(id)
+            if se_obj then
+                local m_data = alife_storage_manager.get_se_obj_state(se_obj, true)
+                if m_data and m_data.offline_condition and m_data.name == object:name() then
+                    printf(
+                        'loaded condition for %s ' .. tonumber(m_data.offline_condition),
+                        se_obj:section_name()
+                    )
+                end
+            end
+            local ini = object:spawn_ini()
+            if not (ini and ini:section_exist('fixed_bone')) then
+                self.first_call = false
+                return
+            end
+            local bone_name = ini:r_string_ex('fixed_bone', 'name')
+
+            local ph_shell = object:get_physics_shell()
+            if not ph_shell then
+                return
+            end
+
+            local ph_element = ph_shell:get_element_by_bone_name(bone_name)
+
+            if ph_element:is_fixed() then
+            else
+                ph_element:fix()
+            end
+
+            self.first_call = false
+        end
+
+        if self.no_rad then
+            return
+        end -- Original loop permanently excludes these artifacts from radiation.
+        local obj = object
+        local tg = time_global()
+        if tg <= self._tmr_rad then
+            return
+        end
+        local cobj = obj:cast_Artefact()
+        if not cobj then
+            return
+        end
+        local val = 0
+
+        if (tg > self._tmr_rad) and not self.no_rad and in_actor_ruck(obj) then
+            self._tmr_rad = tg + rad_tg_step
+
+            -- Get radiation restore speed
+            local rad_val = cobj.m_fRadiationRestoreSpeed or 0
+
+            -- No process for artefacts with no / healing rad effect
+            if self.no_rad == nil then
+                self.no_rad = (rad_val <= 0)
+                if self.no_rad then
+                    return
+                end
+            end
+
+            -- Apply radiation on actor
+            local rad_delta = rad_val * rad_factor
+            db.actor:change_radiation(rad_delta)
+        end
+    end
+end
+function start()
+    if installed then
+        return true, 'already active'
+    end
+    local class = item_artefact and item_artefact.artefact_binder
+    local original = class and class.update
+    local info = type(original) == 'function' and debug.getinfo(original, 'S')
+    if not info or not info.source:match('zz_item_artefact%.script$') or info.linedefined ~= 129 then
+        return false, 'artifact source differs'
+    end
+    local values = {}
+    for i = 1, 100 do
+        local n, v = debug.getupvalue(original, i)
+        if not n then
+            break
+        end
+        values[n] = v
+    end
+    if
+        type(values.in_actor_ruck) ~= 'function'
+        or type(values.rad_tg_step) ~= 'number'
+        or type(values.rad_factor) ~= 'number'
+    then
+        return false, 'artifact upvalues differ'
+    end
+    local env = getfenv(original)
+    local fn = make_artifact(env, values.in_actor_ruck, values.rad_tg_step, values.rad_factor)
+    setfenv(fn, env)
+    class.update = fn
+    installed = true
+    return true, 'artifact identity retained; one live condition read per update plus readback after writes; physics and radiation unchanged'
+end

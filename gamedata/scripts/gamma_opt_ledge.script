@@ -1,0 +1,139 @@
+-- Sequential ray reuse is limited to one synchronous ledge check.
+local installed = false
+local function find_upvalue(fn, wanted)
+    for i = 1, 100 do
+        local n, v = debug.getupvalue(fn, i)
+        if not n then
+            break
+        end
+        if n == wanted then
+            return i, v
+        end
+    end
+end
+
+-- Only the verified ledge consumer uses this smaller result contract.
+local function ledge_get(self, position, direction)
+    if position == nil or direction == nil then return nil end
+    local ray = self.ray
+    ray:set_position(position)
+    ray:set_direction(direction)
+    local success = ray:query()
+    local distance = success and ray:get_distance() or self.ray_range
+    return {
+        success = success,
+        distance = distance,
+        position = vector():mad(position, direction, distance),
+        result = success and ray:get_result() or nil,
+    }
+end
+
+function make_scope(constructor, minimal_results)
+    local active
+    local function create(args)
+        if
+            not active
+            or not args
+            or not args.ray_range
+            or not args.ignore_object
+            or args.flags ~= 2
+            or args.visualize
+            or args.visualize_end_pos_only
+            or args.contact_range ~= nil
+            or args.distance_offset ~= nil
+        then
+            return constructor(args)
+        end
+        -- Do not assume unknown options are safe to ignore.
+        for key in pairs(args) do
+            if key ~= 'ray_range' and key ~= 'ignore_object' and key ~= 'flags' then
+                return constructor(args)
+            end
+        end
+        local r = active.ray
+        if not r or active.ignore ~= args.ignore_object then
+            r = constructor(args)
+            if minimal_results then r.get = ledge_get end
+            active.ray = r
+            active.ignore = args.ignore_object
+        else
+            r.ray_range = args.ray_range
+            r.contact_range = args.ray_range
+            r.distance_offset = 0
+            r.visualize = nil
+            r.visualize_end_pos_only = nil
+            r.ray:set_flags(2)
+            r.ray:set_range(args.ray_range)
+        end
+        return r
+    end
+    local function wrap(fn)
+        return function(...)
+            local parent = active
+            active = {}
+            local ok, err = pcall(fn, ...)
+            active = parent -- Never retain a native ray or actor after a check.
+            if not ok then
+                error(err, 0)
+            end
+        end
+    end
+    return create, wrap
+end
+
+function start()
+    if installed then
+        return true, 'already active'
+    end
+    local mod = rawget(_G, 'demonized_ledge_grabbing')
+    local original = mod and mod.checkLedgeGrabbing
+    local info = type(original) == 'function' and debug.getinfo(original, 'S')
+    if not info or not info.source:match('demonized_ledge_grabbing%.script$') or info.linedefined ~= 442 then
+        return false, 'ledge implementation differs'
+    end
+    local index, dgr = find_upvalue(original, 'dgr')
+    local class = dgr and dgr.geometry_ray
+    local init = class and class.__init
+    local d = type(init) == 'function' and debug.getinfo(init, 'S')
+    local getter = class and class.get
+    local g = type(getter) == 'function' and debug.getinfo(getter, 'S')
+    if
+        not d
+        or not d.source:match('demonized_geometry_ray%.script$')
+        or d.linedefined ~= 102
+        or not g
+        or not g.source:match('demonized_geometry_ray%.script$')
+        or g.linedefined ~= 127
+        or g.lastlinedefined ~= 177
+    then
+        return false, 'ray implementation differs'
+    end
+    local _, registry = find_upvalue(axr_main.make_callback, 'intercepts')
+    local callbacks = registry and registry.actor_on_update
+    if not callbacks or getmetatable(callbacks) or callbacks[original] == nil then
+        return false, 'original callback registry unavailable'
+    end
+    local flat = mod.isFlat
+    local f = type(flat) == 'function' and debug.getinfo(flat, 'S')
+    if not f or not f.source:match('demonized_ledge_grabbing%.script$') or f.linedefined ~= 328 then
+        return false, 'ledge surface consumer differs'
+    end
+    local create, wrap = make_scope(class, true)
+    local proxy = setmetatable({
+        geometry_ray = function(args)
+            if dgr.geometry_ray ~= class then
+                return dgr.geometry_ray(args)
+            end
+            return create(args)
+        end,
+    }, { __index = dgr })
+    local replacement = wrap(original)
+    debug.setupvalue(original, index, proxy)
+    local priority = callbacks[original]
+    callbacks[original] = nil
+    callbacks[replacement] = priority
+    mod.checkLedgeGrabbing = replacement
+    installed = true
+    return true,
+        'lean ledge results; no material snapshot for misses; live queries retained'
+end

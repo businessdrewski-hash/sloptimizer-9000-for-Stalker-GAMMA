@@ -1,0 +1,58 @@
+{
+  "conditions": {
+    "resolution": "1280x720",
+    "engine": "xrRazom multiplayer",
+    "location": "Yanov Station",
+    "connected_peers": 0,
+    "runs_per_configuration": 1,
+    "obs_recording": false,
+    "gc_settings": "unchanged across runs"
+  },
+  "results": [
+    {
+      "label": "both-off",
+      "anti_lag": false,
+      "our_pack": false,
+      "frames": 18375,
+      "seconds": 117.97983900000001,
+      "average_fps": 155.74694927325675,
+      "p99_ms": 22.629779999999997,
+      "p999_ms": 26.314672000000037,
+      "median_ms": 5.312,
+      "over_6_ms": 6251,
+      "over_90fps_budget": 694,
+      "threshold_90fps_ms": 11.11111111111111,
+      "max_ms": 29.83
+    },
+    {
+      "label": "antilag-only",
+      "anti_lag": true,
+      "our_pack": false,
+      "frames": 21947,
+      "seconds": 117.975583,
+      "average_fps": 186.03001944902445,
+      "p99_ms": 16.763080000000002,
+      "p999_ms": 19.836053999999997,
+      "median_ms": 4.575,
+      "over_6_ms": 4144,
+      "over_90fps_budget": 774,
+      "threshold_90fps_ms": 11.11111111111111,
+      "max_ms": 27.499
+    },
+    {
+      "label": "antilag-plus-pack",
+      "anti_lag": true,
+      "our_pack": true,
+      "frames": 27182,
+      "seconds": 117.99110300000001,
+      "average_fps": 230.37330195989438,
+      "p99_ms": 7.203949999999994,
+      "p999_ms": 9.535596999999969,
+      "median_ms": 4.219,
+      "over_6_ms": 791,
+      "over_90fps_budget": 6,
+      "threshold_90fps_ms": 11.11111111111111,
+      "max_ms": 37.679
+    }
+  ]
+}

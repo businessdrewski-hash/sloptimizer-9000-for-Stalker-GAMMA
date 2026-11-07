@@ -1,0 +1,82 @@
+-- Task status checks with a retained device wrapper.
+
+local installed = false
+function make_tasks(retained_device)
+    local replacement = {}
+    function replacement.task_complete(self, p1)
+        if db.actor == nil or retained_device.precache_frame > 1 then
+            return false
+        end
+
+        local tsk = self.task_info[p1]
+        if tsk == nil then
+            printe('!ERROR: CRandomTask:task_complete %s task is nil!', p1)
+            return true
+        end
+
+        if tsk.forced_status == 'complete' then
+            tsk.forced_status = nil
+            tsk.last_check_task = 'complete'
+        elseif tsk.forced_status == 'fail' then
+            return false
+        end
+
+        if tsk.last_check_task == 'complete' then
+            return true
+        end
+        return false
+    end
+
+    function replacement.task_fail(self, p1)
+        if db.actor == nil or retained_device.precache_frame > 1 then
+            return false
+        end
+
+        local tsk = self.task_info[p1]
+        if tsk == nil then
+            printe('!ERROR: CRandomTask:task_fail %s task is nil!', p1)
+            return false
+        end
+
+        if tsk.forced_status == 'fail' then
+            tsk.forced_status = nil
+            tsk.last_check_task = 'fail'
+        elseif tsk.forced_status == 'complete' then
+            return false
+        end
+
+        if tsk.last_check_task == 'fail' then
+            return true
+        end
+        return false
+    end
+
+    return replacement
+end
+function start()
+    if installed then
+        return true, 'already active'
+    end
+    local class = task_manager and task_manager.CRandomTask
+    if not class then
+        return false, 'task class unavailable'
+    end
+    for name, line in pairs({ task_complete = 122, task_fail = 146 }) do
+        local fn = class[name]
+        local d = type(fn) == 'function' and debug.getinfo(fn, 'S')
+        if not d or not d.source:match('task_manager%.script$') or d.linedefined ~= line then
+            return false, 'task check differs'
+        end
+    end
+    local d = device()
+    if not d or type(d.precache_frame) ~= 'number' then
+        return false, 'device unavailable'
+    end
+    local replacement = make_tasks(d)
+    for name, fn in pairs(replacement) do
+        setfenv(fn, getfenv(class[name]))
+        class[name] = fn
+    end
+    installed = true
+    return true, 'retained device wrapper in task status checks; actor, precache and task state read live'
+end

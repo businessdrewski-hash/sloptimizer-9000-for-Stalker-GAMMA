@@ -1,0 +1,88 @@
+-- Ordinary items: bypass unused bookkeeping for untracked items.
+
+local installed = false
+function make_tracked(original, env)
+    local global_state = type(rawget(env, 'item_uses')) == 'table'
+        and type(rawget(env, 'item_condition')) == 'table'
+    local slots = {}
+    for i = 1, 100 do
+        local n, v = debug.getupvalue(original, i)
+        if not n then
+            break
+        end
+        if (n == 'item_uses' or n == 'item_condition') and type(v) == 'table' then
+            slots[n] = i
+        end
+    end
+    local shared = slots.item_uses and slots.item_condition and type(debug.upvaluejoin) == 'function'
+    if not shared and not global_state then
+        return nil
+    end
+    global_state = not shared
+    local item_uses, item_condition
+    local function update(self, delta)
+        if not self.first_update then
+            return original(self, delta)
+        end
+        env.object_binder.update(self, delta)
+        if not self.multiuse and not self.degradable then
+            return
+        end
+        if global_state then
+            item_uses = env.item_uses
+            item_condition = env.item_condition
+        end
+        local obj = self._gamma_opt_item_object
+        if not obj then
+            obj = self.object
+            self._gamma_opt_item_object = obj
+            self._gamma_opt_item_id = obj:id()
+        end
+        local id = self._gamma_opt_item_id
+        if self.multiuse then
+            item_uses[id] = obj:get_remaining_uses()
+        elseif self.degradable then
+            item_condition[id] = obj:condition()
+        end
+    end
+    for i = 1, 100 do
+        local n = debug.getupvalue(update, i)
+        if not n then
+            break
+        end
+        if shared and slots[n] then
+            debug.upvaluejoin(update, i, original, slots[n])
+        end
+    end
+    return update
+end
+function make_update(original, env)
+    return function(self, delta)
+        if not self.first_update or self.multiuse or self.degradable then
+            return original(self, delta)
+        end
+        return env.object_binder.update(self, delta)
+    end
+end
+function start()
+    if installed then
+        return true, 'already active'
+    end
+    local class = bind_item and bind_item.item_binder
+    local original = class and class.update
+    local d = type(original) == 'function' and debug.getinfo(original, 'S')
+    if not d or not d.source:match('bind_item%.script$') or d.linedefined ~= 152 then
+        return false, 'item binder differs'
+    end
+    local env = getfenv(original)
+    if not env.object_binder or type(env.object_binder.update) ~= 'function' then
+        return false, 'native binder unavailable'
+    end
+    local tracked = make_tracked(original, env)
+    class.update = tracked or make_update(original, env)
+    installed = true
+    return true,
+        tracked
+                and 'tracked item wrapper and ID retained; live condition/uses and save-state tables preserved'
+            or 'untracked shortcut active; tracked-state optimization unavailable'
+end

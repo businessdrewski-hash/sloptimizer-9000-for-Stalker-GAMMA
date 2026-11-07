@@ -1,0 +1,36 @@
+-- Ray setters copy their inputs; only the returned endpoint needs a new vector.
+local installed = false
+function make_get(original)
+    return function(self, position, direction)
+        if position == nil or direction == nil then return nil end
+        if self.visualize then return original(self, position, direction) end
+        local ray = self.ray
+        ray:set_position(position)
+        ray:set_direction(direction)
+        local success = ray:query()
+        local distance = success and ray:get_distance() or self.ray_range
+        local result = {}
+        result.in_contact = distance <= self.contact_range
+        result.position = vector():mad(position, direction, distance + self.distance_offset)
+        result.distance = distance
+        result.raw_distance = ray:get_distance()
+        result.success = success
+        result.object = ray:get_object()
+        result.element = ray:get_element()
+        result.result = ray:get_result()
+        return result
+    end
+end
+function start()
+    if installed then return true, 'already active' end
+    local class = demonized_geometry_ray and demonized_geometry_ray.geometry_ray
+    local original = class and class.get
+    local info = type(original) == 'function' and debug.getinfo(original, 'S')
+    if not info or not info.source:match('demonized_geometry_ray%.script$')
+        or info.linedefined ~= 127 or info.lastlinedefined ~= 177 then
+        return false, 'geometry getter differs'
+    end
+    class.get = make_get(original)
+    installed = true
+    return true, 'one independent endpoint vector; native queries and result fields preserved'
+end

@@ -1,0 +1,141 @@
+-- xrRazom party HUD: update fields only when their values change.
+
+local installed = false
+function set_field(slot, key, widget, method, value)
+    local cache = slot.gamma_opt_values
+    if not cache then
+        cache = {}
+        slot.gamma_opt_values = cache
+    end
+    if cache[key] ~= value then
+        widget[method](widget, value)
+        cache[key] = value
+    end
+end
+function update(self, force)
+    CUIScriptWnd.Update(self)
+    local now = time_global()
+    if force then
+        self._tmr = now - 1
+    end
+    if self._tmr >= now then
+        return
+    end
+    self._tmr = now + 500
+    local session = XrrIsHosted() or XrrIsConnected()
+    local show = main_hud_shown() and get_console_cmd(1, 'xrr_show_players_hp') and session
+    self:PlaceCompanionList(session)
+    if force then
+        for i = 1, 4 do
+            self.slots[i].gamma_opt_values = nil
+        end
+    end
+    if not show then
+        for i = 1, 4 do
+            set_field(self.slots[i], 'shown', self.slots[i].base, 'Show', false)
+        end
+        return
+    end
+    local players = XrrPlayers()
+    local count = players:GetPeerCount()
+    local shown = 0
+    local actor_pos
+    for i = 1, count do
+        if shown >= 4 then
+            break
+        end
+        local nick = players:GetPeerNicknameAt(i)
+        if nick ~= '' then
+            shown = shown + 1
+            local s = self.slots[shown]
+            local hp = clamp(players:GetPeerHealthAt(i), 0, 1)
+            local faction = (players:GetPeerFactionAt(i) or ''):gsub('^actor_', '')
+            local outfit = players:GetPeerOutfitAt(i)
+            if s.gamma_opt_outfit ~= outfit or s.gamma_opt_faction ~= faction or not s.gamma_opt_portrait then
+                s.gamma_opt_portrait = self:ResolvePortrait(i)
+                s.gamma_opt_outfit = outfit
+                s.gamma_opt_faction = faction
+            end
+            if s._icon ~= s.gamma_opt_portrait then
+                s.icon:InitTexture(s.gamma_opt_portrait)
+                s._icon = s.gamma_opt_portrait
+            end
+            local dead = hp <= 0
+            local wounded = not dead and players:IsPeerWoundedAt(i)
+            local icon = dead and GetARGB(255, 110, 110, 110)
+                or wounded and GetARGB(255, 255, 80, 80)
+                or GetARGB(255, 255, 255, 255)
+            local name = dead and GetARGB(255, 130, 130, 130)
+                or wounded and GetARGB(255, 255, 90, 90)
+                or GetARGB(255, 230, 230, 230)
+            set_field(s, 'icon_color', s.icon, 'SetTextureColor', icon)
+            set_field(s, 'name_color', s.name, 'SetTextColor', name)
+            set_field(s, 'name', s.name, 'SetText', nick)
+            set_field(s, 'hp', s.hp, 'SetProgressPos', hp)
+            local mark = players:IsPeerHostAt(i) and 'ui_minimap_squad_leader' or 'ui_minimap_point'
+            if s._mark ~= mark then
+                s.role:InitTexture(mark)
+                s.role_shadow:InitTexture(mark)
+                s._mark = mark
+            end
+            set_field(s, 'role_color', s.role, 'SetTextureColor', self.clr_list[faction] or self.clr_list.def)
+            -- Original initializes this field hidden. Honor other mods showing it.
+            if s.distance:IsShown() then
+                local id = players:GetPeerLocalIdAt(i)
+                local obj = (id and id > 0 and id < 65535) and level.object_by_id(id) or nil
+                local text = ''
+                if obj and db.actor then
+                    actor_pos = actor_pos or db.actor:position()
+                    text = string.format('%.0f m', obj:position():distance_to(actor_pos))
+                end
+                set_field(s, 'distance', s.distance, 'SetText', text)
+            end
+            set_field(s, 'shown', s.base, 'Show', true)
+        end
+    end
+    for i = shown + 1, 4 do
+        set_field(self.slots[i], 'shown', self.slots[i].base, 'Show', false)
+    end
+end
+function start()
+    if
+        type(rawget(_G, 'XrrIsHosted')) ~= 'function'
+        or type(rawget(_G, 'XrrIsConnected')) ~= 'function'
+        or type(rawget(_G, 'XrrPlayers')) ~= 'function'
+    then
+        return false, 'xrRazom engine not present; multiplayer-only feature skipped'
+    end
+
+    if installed then
+        return true, 'already active'
+    end
+    local mod = xrr_peer_hud
+    local class = mod and (mod.UIPeerList or _G.UIPeerList)
+    local fn = class and class.Update
+    local d = type(fn) == 'function' and debug.getinfo(fn, 'S')
+    if not d or not d.source:match('xrr_peer_hud%.script$') or d.linedefined ~= 174 then
+        return false, 'peer HUD update differs from reviewed build'
+    end
+    local existed = mod.HUD ~= nil
+    if existed then
+        mod.HUD:PlaceCompanionList(false)
+        mod.deactivate_hud()
+    end
+    class.Update = update
+    if existed then
+        mod.activate_hud()
+    end
+    RegisterScriptCallback('on_option_change', function()
+        if mod.HUD then
+            for i = 1, 4 do
+                local s = mod.HUD.slots[i]
+                s.gamma_opt_values = nil
+                s.gamma_opt_portrait = nil
+            end
+            mod.HUD:Update(true)
+        end
+    end)
+    installed = true
+    return true,
+        'changed-field updates; cached portraits; hidden-distance work skipped; 500 ms refresh retained'
+end

@@ -1,0 +1,168 @@
+-- Callback dispatch: cached ordering and reusable traversal buffers.
+
+local installed = false
+local function upvalue(fn, wanted)
+    for i = 1, 100 do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then
+            break
+        end
+        if name == wanted then
+            return value
+        end
+    end
+end
+local function source_is(fn, suffix, first, last)
+    if type(fn) ~= 'function' then
+        return false
+    end
+    local d = debug.getinfo(fn, 'S')
+    return d and d.source:sub(-#suffix) == suffix and d.linedefined == first and d.lastlinedefined == last
+end
+local function sift(keys, index, n, t)
+    local key = keys[index]
+    -- No callbacks run inside a sift; priorities remain live between sifts.
+    local priority = t[key]
+    while index * 2 <= n do
+        local child = index * 2
+        local child_priority = t[keys[child]]
+        if child < n then
+            local right_priority = t[keys[child + 1]]
+            if (right_priority ~= nil and (child_priority == nil or right_priority < child_priority)) then
+                child = child + 1
+                child_priority = right_priority
+            end
+        end
+        if (child_priority ~= nil and (priority == nil or child_priority < priority)) then
+            keys[index] = keys[child]
+            index = child
+        else
+            break
+        end
+    end
+    keys[index] = key
+end
+
+function make_dispatch(original, registry)
+    local caches, frames = setmetatable({}, { __mode = 'k' }), {}
+    local depth = 0
+    local function template(t)
+        local c = caches[t]
+        local n, changed = 0, not c
+        for key, value in pairs(t) do
+            n = n + 1
+            if type(value) ~= 'number' or value ~= value then
+                return
+            end
+            if c and c.values[key] ~= value then
+                changed = true
+            end
+        end
+        if c and n ~= c.n then
+            changed = true
+        end
+        if not changed then
+            return c
+        end
+        -- Registration changes are uncommon. Rebuild only at those boundaries.
+        c = { n = n, keys = {}, values = {} }
+        local unique = {}
+        local i = 0
+        for key, value in pairs(t) do
+            if unique[value] then
+                return
+            end -- equal-priority ordering not assumed
+            unique[value] = true
+            i = i + 1
+            c.keys[i] = key
+            c.values[key] = value
+        end
+        for j = math.floor(n / 2), 1, -1 do
+            sift(c.keys, j, n, t)
+        end
+        caches[t] = c
+        return c
+    end
+    local function dispatch(name, ...)
+        local t = registry[name]
+        if not t or getmetatable(t) then
+            return original(name, ...)
+        end
+        local c = template(t)
+        if not c then
+            return original(name, ...)
+        end
+        if c.n == 0 then
+            return
+        end
+        if c.n == 1 then
+            local key = c.keys[1]
+            if type(key) == 'function' then
+                key(...)
+            elseif key[name] then
+                key[name](key, ...)
+            end
+            return
+        end
+        local keys = frames[depth]
+        if not keys then
+            keys = {}
+            frames[depth] = keys
+        end
+        local n = c.n
+        for i = 1, n do
+            keys[i] = c.keys[i]
+        end
+        while n > 0 do
+            local key = keys[1]
+            local value = t[key]
+            keys[1] = keys[n]
+            keys[n] = nil
+            n = n - 1
+            if n > 0 then
+                sift(keys, 1, n, t)
+            end
+            if value ~= nil then
+                if type(key) == 'function' then
+                    key(...)
+                elseif key[name] then
+                    key[name](key, ...)
+                end
+            end
+        end
+    end
+    return function(name, ...)
+        depth = depth + 1
+        local ok, err = pcall(dispatch, name, ...)
+        if not ok and frames[depth] then
+            for i = #frames[depth], 1, -1 do
+                frames[depth][i] = nil
+            end
+        end
+        depth = depth - 1
+        if not ok then
+            error(err, 0)
+        end
+    end
+end
+
+function start()
+    if installed then
+        return true, 'already active'
+    end
+    local original = axr_main.make_callback
+    if
+        not source_is(original, 'axr_main.script', 280, 293)
+        or not source_is(spairs, '_g_patches.script', 1060, 1066)
+        or not source_is(sort_func_values_ascend, '_g_patches.script', 413, 415)
+    then
+        return false, 'dispatcher or sort implementation differs from reviewed build'
+    end
+    local registry = upvalue(original, 'intercepts')
+    if type(registry) ~= 'table' then
+        return false, 'callback registry unavailable'
+    end
+    axr_main.make_callback = make_dispatch(original, registry)
+    installed = true
+    return true, 'initial-heap cache and reusable traversal buffers active'
+end

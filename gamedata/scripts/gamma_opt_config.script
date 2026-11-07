@@ -1,0 +1,56 @@
+-- Component switches. Restart the game after changing these values.
+
+-- Interaction markers
+markers = true
+
+-- Shared callback dispatcher
+callback_cache = true
+
+-- Body health display
+injury_display = true
+injury_display_interval_ms = 33
+
+-- xrRazom panel visibility (requires its party HUD)
+offline_peer_panel = true
+
+-- Nearby light scans
+light_scan_cache = true
+light_scan_interval_ms = 100
+
+-- xrRazom panel fields (requires its party HUD)
+peer_field_cache = true
+
+-- Artifact metadata
+artifact_kind_cache = true
+
+-- Live engine clock
+shared_clock = true
+
+-- Item update path
+v2_item_updates = true
+
+-- Artifact update path
+v2_artifact_updates = true
+
+-- Projection buffers
+v2_projection = true
+
+-- Radiation text
+v2_radiation = true
+
+-- Task status checks
+v2_task_checks = true
+
+-- Shared scan cache; also requires light_scan_cache
+shared_light_scan = true
+
+-- Reusable lamp save input; condition writes still run every update.
+lamp_save_buffers = true
+
+-- Reuse sequential rays within one ledge detection pass.
+ledge_ray_reuse = true
+ray_query_inputs = true
+
+vision_light_frame = true
+
+native_read_reduction = true

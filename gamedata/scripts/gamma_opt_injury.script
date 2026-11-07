@@ -1,0 +1,44 @@
+-- Body health display refresh limiter; health calculations are unchanged.
+
+local installed = false
+function make_display(original, interval)
+    local previous
+    return function(...)
+        local now = time_global()
+        if previous and now >= previous and now - previous < interval then
+            return
+        end
+        previous = now
+        return original(...)
+    end
+end
+function start(interval)
+    if installed then
+        return true, 'already active'
+    end
+    local mod = zzz_player_injuries
+    if not mod or type(mod.actor_on_update) ~= 'function' then
+        return false, 'injury callback missing'
+    end
+    for i = 1, 100 do
+        local name, fn = debug.getupvalue(mod.actor_on_update, i)
+        if not name then
+            break
+        end
+        if name == 'HUDUpdate' and type(fn) == 'function' then
+            local d = debug.getinfo(fn, 'S')
+            if
+                not d.source:match('zzz_player_injuries%.script$')
+                or d.linedefined ~= 812
+                or d.lastlinedefined ~= 1181
+            then
+                return false, 'injury display differs from reviewed Medications Balance build'
+            end
+            interval = math.max(1, math.min(100, tonumber(interval) or 33))
+            debug.setupvalue(mod.actor_on_update, i, make_display(fn, interval))
+            installed = true
+            return true, 'display refresh interval ' .. interval .. ' ms; health logic unchanged'
+        end
+    end
+    return false, 'HUDUpdate closure unavailable'
+end

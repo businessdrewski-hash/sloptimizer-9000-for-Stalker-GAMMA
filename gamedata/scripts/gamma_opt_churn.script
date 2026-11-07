@@ -1,0 +1,55 @@
+-- Reuse live clock access and synchronous lamp-save inputs.
+local installed = false
+
+function make_save(update_data)
+    -- The reviewed manager copies fields synchronously; it does not retain this table.
+    -- Per-instance ownership also keeps nested saves on another lamp independent.
+    local buffers = setmetatable({}, { __mode = 'k' })
+    return function(self)
+        local data = buffers[self]
+        if not data then
+            data = {}
+            buffers[self] = data
+        end
+        data.condition = self.fuel
+        update_data(self.object:id(), data)
+    end
+end
+
+function start_lamp_buffers()
+    if installed then
+        return true, 'already active'
+    end
+    local lights = bind_light_furniture
+    local class = lights and lights.placeable_light_wrapper
+    local save = class and class.save_data
+    local manager = hf_obj_manager
+    local update = manager and manager.update_data
+    local s = type(save) == 'function' and debug.getinfo(save, 'S')
+    local u = type(update) == 'function' and debug.getinfo(update, 'S')
+    if
+        not s
+        or not s.source:match('bind_light_furniture%.script$')
+        or s.linedefined ~= 223
+        or s.lastlinedefined ~= 227
+    then
+        return false, 'lamp save implementation differs'
+    end
+    if
+        not u
+        or not u.source:match('hf_obj_manager%.script$')
+        or u.linedefined ~= 4
+        or u.lastlinedefined ~= 10
+    then
+        return false, 'lamp data manager differs'
+    end
+    local optimized = make_save(update)
+    class.save_data = function(self)
+        if manager.update_data ~= update then
+            return save(self)
+        end
+        return optimized(self)
+    end
+    installed = true
+    return true, 'per-lamp input table reused; every condition write retained'
+end

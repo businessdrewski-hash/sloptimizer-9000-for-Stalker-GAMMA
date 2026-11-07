@@ -1,0 +1,161 @@
+-- Interaction markers: scheduled checks and smooth screen positioning.
+
+local installed = false
+local original_precheck
+local render_device, cached_frame, cached_time
+local hover_scratch
+
+local function marker_time()
+    if not render_device then
+        return time_global()
+    end
+    local frame = render_device.frame
+    -- No frame identity available: retain the original live-clock behavior.
+    if type(frame) ~= 'number' then
+        return render_device:time_global()
+    end
+    if frame ~= cached_frame then
+        cached_frame = frame
+        cached_time = render_device:time_global()
+    end
+    return cached_time
+end
+
+local function hover_dot(pos)
+    -- Retain engine vector normalization, including its degenerate-vector behavior.
+    -- Read camera properties live: renderer and actor updates may share a frame ID.
+    hover_scratch:set(pos):sub(render_device.cam_pos):normalize()
+    return hover_scratch:dotproduct(render_device.cam_dir)
+end
+local stats = { entries = 0, duplicates = 0, full = 0, visual = 0, waiting = 0 }
+
+local function plain_dot(m)
+    -- Rich labels and custom end callbacks need the original visual pipeline.
+    return m.skip_hint
+        and m.skip_dist
+        and not m.func_on_update_end
+        and not m.locked_screen_pos
+        and not m.show_offscreen
+        and not m.skip_onscreen_precheck
+end
+
+local function fast_position(m, now)
+    if not m.is_shown or not m.last_pos or not m.marker then
+        return
+    end
+    local util = utils_catspaw_hudmarks
+    if
+        not (
+            m.args.ignore_hud_state
+            or main_hud_shown()
+            or axr_main.binoc_is_zoomed
+            or axr_main.scoped_weapon_is_zoomed
+        )
+    then
+        m:HideAll('smooth patch: HUD hidden')
+        m.gamma_smooth_due = now
+        return
+    end
+    if item_device.is_pda_active() and not m.show_in_pda then
+        m:HideAll('smooth patch: PDA open')
+        m.gamma_smooth_due = now
+        return
+    end
+    -- Private scratch vector: never alias or mutate the engine's world position.
+    local input = m.gamma_projection_input
+    if not input then
+        input = vector()
+        m.gamma_projection_input = input
+    end
+    local p = m.last_pos
+    input:set(p.x, p.y, p.z)
+    local v = game.world2ui(input, false, false)
+    if not v or v.x == -9999 or v.y == 0 then
+        m:HideAll('smooth patch: offscreen')
+        m.gamma_smooth_due = now
+        return
+    end
+    m.world2ui_vec = v
+    if m.hide_when_oob and (v.x < m.min_x or v.x > m.max_x or v.y < m.min_y or v.y > m.max_y) then
+        m:HideAll('smooth patch: out of bounds')
+        m.gamma_smooth_due = now
+        return
+    end
+    if m.final_pos_adjustments then
+        local adjusted = m.gamma_projection_adjusted
+        if not adjusted then
+            adjusted = vector2()
+            m.gamma_projection_adjusted = adjusted
+        end
+        adjusted:set(
+            clamp((m.lock_x or v.x) + (m.adj_final_x or 0), m.min_x, m.max_x),
+            clamp((m.lock_y or v.y) + (m.adj_final_y or 0), m.min_y, m.max_y)
+        )
+        v = adjusted
+    end
+    m.last_screen_pos = v
+    if m.gamma_written_window ~= m.marker or m.gamma_written_x ~= v.x or m.gamma_written_y ~= v.y then
+        m.marker:SetWndPos(v)
+        m.gamma_written_window = m.marker
+        m.gamma_written_x, m.gamma_written_y = v.x, v.y
+    end
+    m.timestamp = now
+    if m.managed_hover or m.hint_on_hover or m.dist_on_hover then
+        m.last_hover = util.dotproduct_for_pos(m.last_pos) or 0
+    end
+    stats.visual = stats.visual + 1
+    CUIScriptWnd.Update(m)
+end
+
+function start()
+    assert(not installed, 'Smooth patch already installed')
+    local util = utils_catspaw_hudmarks
+    original_precheck = assert(util.marker_is_offscreen)
+    if type(device) == 'function' then
+        local candidate = device()
+        if candidate and type(candidate.time_global) == 'function' then
+            render_device = candidate
+        end
+    end
+    if render_device then
+        hover_scratch = vector()
+        -- Pure synchronous helper returns only a number; scratch never escapes.
+        util.dotproduct_for_pos = hover_dot
+    end
+    util.marker_is_offscreen = function(m)
+        if m.preset ~= 'dotmark' or m.actor_taking then
+            m.gamma_written_window = nil
+            return original_precheck(m)
+        end
+        stats.entries = stats.entries + 1
+        local now = marker_time()
+        if m.gamma_smooth_tick == now then
+            stats.duplicates = stats.duplicates + 1
+            return true
+        end
+        -- Reset deadlines on a clock rollback; timestamps are not frame IDs.
+        if m.gamma_smooth_tick and now < m.gamma_smooth_tick then
+            m.gamma_smooth_due = nil
+        end
+        m.gamma_smooth_tick = now
+        if m.gamma_smooth_due and now < m.gamma_smooth_due then
+            stats.waiting = stats.waiting + 1
+            if plain_dot(m) then
+                fast_position(m, now)
+            end
+            return true
+        end
+        -- The full pipeline may reposition/recreate the window independently.
+        m.gamma_written_window = nil
+        stats.full = stats.full + 1
+        local blocked = original_precheck(m)
+        local interval = (m.is_offscreen and m.offscreen_interval) or m.update_int or 50
+        m.gamma_smooth_due = now + math.max(0, interval)
+        return blocked
+    end
+    installed = true
+end
+
+function counters()
+    return stats
+end

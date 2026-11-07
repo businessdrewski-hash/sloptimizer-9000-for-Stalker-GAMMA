@@ -1,0 +1,51 @@
+-- Marker projection and eye-direction scratch buffers.
+
+local installed = false
+function make_projection(env)
+    local scratch = env.vector()
+    return function(pos, obj, id, return_offscreen)
+        if not pos then
+            id = id or (obj and obj:id())
+            obj = obj or (id and env.get_game_object(id))
+            pos = obj and obj:position()
+        end
+        -- world2ui is synchronous; only its input buffer is reused. Output stays engine-owned.
+        local vec = pos and env.game.world2ui(scratch:set(pos.x, pos.y, pos.z), false, return_offscreen)
+        if vec and vec.x ~= -9999 and vec.y ~= 0 then
+            return vec
+        end
+    end
+end
+function make_eye(env)
+    local scratch = env.vector()
+    local d = env.device()
+    return function(position)
+        scratch:set(position):sub(d.cam_pos):normalize()
+        return scratch:dotproduct(d.cam_dir)
+    end
+end
+function start()
+    if installed then
+        return true, 'already active'
+    end
+    local util = utils_catspaw_hudmarks
+    local dot = ui_hud_dotmarks
+    local p = util and util.world_to_ui
+    local e = dot and dot.dot_eye
+    local a = type(p) == 'function' and debug.getinfo(p, 'S')
+    local b = type(e) == 'function' and debug.getinfo(e, 'S')
+    if
+        not a
+        or not a.source:match('utils_catspaw_hudmarks%.script$')
+        or a.linedefined ~= 325
+        or not b
+        or not b.source:match('ui_hud_dotmarks%.script$')
+        or b.linedefined ~= 4524
+    then
+        return false, 'projection helpers differ'
+    end
+    util.world_to_ui = make_projection(getfenv(p))
+    dot.dot_eye = make_eye(getfenv(e))
+    installed = true
+    return true, 'reused projection and targeting input vectors; scans and camera reads remain live'
+end

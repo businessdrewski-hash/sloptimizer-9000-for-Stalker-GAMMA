@@ -1,0 +1,137 @@
+-- Shared negative light queries with exact positive checks and fallback.
+
+local statistics = {
+    requests = 0,
+    native_queries = 0,
+    negative_hits = 0,
+    positive_fallbacks = 0,
+    failures = 0,
+    shadow_checks = 0,
+    mismatches = 0,
+}
+function counters()
+    return statistics
+end
+function make_presence_query(kinds, iterate)
+    local found = false
+    local function visit(obj)
+        if obj and kinds[obj:clsid()] then
+            found = true
+            return true
+        end
+    end
+    return function(center, radius)
+        found = false
+        iterate(center, radius, visit)
+        return found
+    end
+end
+function make_scan(original, kinds, get_switch, clock, interval, api)
+    local classes = {}
+    for class, enabled in pairs(kinds) do
+        if enabled then
+            classes[#classes + 1] = class
+        end
+    end
+    local nearest = api.nearest
+    local iterate_fallback = original
+    local cells = {}
+    local count = 0
+    local last_time
+    local center = api.vector()
+    local busy = false
+    local disabled = (not nearest and not api.anypsi) or #classes == 0
+    local cell_size = 16
+    local radius = 15 + math.sqrt(3) * cell_size / 2 + 0.01
+    local function region(now, x, y, z)
+        local gx, gy, gz = math.floor(x / cell_size), math.floor(y / cell_size), math.floor(z / cell_size)
+        local tx = cells[gx]
+        local ty = tx and tx[gy]
+        local c = ty and ty[gz]
+        if c and now < c.expires then
+            statistics.negative_hits = statistics.negative_hits + 1
+            return c
+        end
+        center:set((gx + 0.5) * cell_size, (gy + 0.5) * cell_size, (gz + 0.5) * cell_size)
+        if not nearest then
+            statistics.native_queries = statistics.native_queries + 1
+            if api.anypsi(center, radius) then
+                return nil
+            end
+        else
+            for i = 1, #classes do
+                statistics.native_queries = statistics.native_queries + 1
+                local object = nearest(center, radius, classes[i])
+                if object ~= nil then
+                    -- A broad positive is not an exact positive: preserve engine radius and alive semantics.
+                    if type(object) ~= 'userdata' and type(object) ~= 'table' then
+                        error('unsupported nearest-object return')
+                    end
+                    return nil
+                end
+            end
+        end
+        if count >= 64 then
+            cells = {}
+            count = 0
+            tx = nil
+            ty = nil
+            c = nil
+        end
+        if not tx then
+            tx = {}
+            cells[gx] = tx
+        end
+        if not ty then
+            ty = {}
+            tx[gy] = ty
+        end
+        if not c then
+            c = {}
+            count = count + 1
+        end
+        c.expires = now + interval
+        ty[gz] = c
+        return c
+    end
+    return function(lamp)
+        statistics.requests = statistics.requests + 1
+        if disabled or busy then
+            return iterate_fallback(lamp)
+        end
+        if api.emission() or get_switch() == true then
+            return true
+        end
+        local now = clock()
+        if last_time and now < last_time then
+            cells = {}
+            count = 0
+        end
+        last_time = now
+        local p = lamp:position()
+        busy = true
+        local ok, c = pcall(region, now, p.x, p.y, p.z)
+        busy = false
+        if not ok then
+            disabled = true
+            statistics.failures = statistics.failures + 1
+            return iterate_fallback(lamp)
+        end
+        if not c then
+            statistics.positive_fallbacks = statistics.positive_fallbacks + 1
+            return iterate_fallback(lamp)
+        end
+        if statistics.shadow_checks < 64 then
+            statistics.shadow_checks = statistics.shadow_checks + 1
+            local actual = iterate_fallback(lamp)
+            if actual then
+                disabled = true
+                cells = {}
+                statistics.mismatches = statistics.mismatches + 1
+                return actual
+            end
+        end
+        -- Outer per-lamp cache must not extend this shared result's lifetime.
+        return false, c.expires
+    end
+end

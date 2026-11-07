@@ -1,0 +1,101 @@
+-- Radiation display: avoid redundant text writes.
+
+local installed = false
+function make_radiation(original, pass, slot_n)
+    local og_UIIndicators_Update = original
+    local last_label, last_value, last_text
+    return function(self, force)
+        local update_allowed = false
+        local tg = time_global()
+        if force or self._tmr < tg then
+            update_allowed = true
+        end
+
+        og_UIIndicators_Update(self, force)
+
+        if update_allowed then
+            if not eval_geiger_requirement() then
+                return
+            end
+
+            local t = actor_status.indicators['Radiation']
+            local value = t.functor and execute_func(unpack(t.functor))
+
+            pass = false
+            if t.typ == 'state' then
+                pass = value and value <= 4 and value >= 1
+            elseif t.typ == 'booster' then
+                pass = value and true or false
+            end
+
+            if pass then
+                -- FDDA REDONE Gasmask Icon support
+                slot_n = actor_status_gasmask and (actor_status_gasmask.get_gasmask_status(true) ~= 0) and 2
+                    or 1
+
+                if
+                    self.slot[slot_n]
+                    and self.slot[slot_n].icon_f:IsShown()
+                    and self.slot[slot_n].xcvb_time
+                then
+                    local show_time = math.ceil(db.actor.radiation * 10000 * 0.387)
+                    self.slot[slot_n].xcvb_time:Show(show_time and true or false)
+                    self.slot[slot_n].xcvb_time:SetText(show_time or '')
+                end
+            end
+        else
+            if faster_refresh_rate and pass then
+                if
+                    self.slot[slot_n]
+                    and self.slot[slot_n].icon_f:IsShown()
+                    and self.slot[slot_n].xcvb_time:IsShown()
+                then
+                    local show_time = math.ceil(db.actor.radiation * 10000 * 0.387)
+                    local label = self.slot[slot_n].xcvb_time
+                    local value = show_time or ''
+                    if label ~= last_label or value ~= last_value then
+                        last_label = label
+                        last_value = value
+                        last_text = tostring(value)
+                    end
+                    -- Inspect current text: another HUD component may have written this label.
+                    if label:GetText() ~= last_text then
+                        label:SetText(value)
+                    end
+                end
+            end
+        end
+    end
+end
+function start()
+    if installed then
+        return true, 'already active'
+    end
+    local class = actor_status and actor_status.UIIndicators
+    local original = class and class.Update
+    local d = type(original) == 'function' and debug.getinfo(original, 'S')
+    if not d or not d.source:match('msv_over_radiation_status_mcm%.script$') or d.linedefined ~= 18 then
+        return false, 'radiation display differs or is wrapped'
+    end
+    local values = {}
+    for i = 1, 100 do
+        local n, v = debug.getupvalue(original, i)
+        if not n then
+            break
+        end
+        values[n] = v
+    end
+    if
+        type(values.og_UIIndicators_Update) ~= 'function'
+        or type(values.pass) ~= 'boolean'
+        or type(values.slot_n) ~= 'number'
+    then
+        return false, 'radiation display state unavailable'
+    end
+    local replacement = make_radiation(values.og_UIIndicators_Update, values.pass, values.slot_n)
+    setfenv(replacement, getfenv(original))
+    class.Update = replacement
+    installed = true
+    return true,
+        'unchanged fast-refresh radiation text writes skipped; base HUD update and displayed-value rate retained'
+end
