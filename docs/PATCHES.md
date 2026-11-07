@@ -1,16 +1,38 @@
-# Review defaults
-
-In 2.10.1-readable, Light scans, Vision world light, and Visibility read reduction are disabled by default. Their implementations below are retained for inspection. See [AI audit](AI-REVIEW.md) for the reasons.
-
 # Patch map
 
-Each entry identifies the upstream target, implementing module, switch and behavior. `::name` denotes a private Lua upvalue. The registry contains the same paths for startup reporting.
+This is the lookup table for code ownership. **Enabled** means the configuration permits installation; a missing dependency or failed guard can still make the component skip. Check the startup report to see what actually installed.
+
+`module.function::name` identifies a private Lua upvalue inside that function, not a public field. The listed targets are the diagnostic observation points. Some components also register callbacks, replace an object environment, or recreate UI objects; those effects are described in the entries.
+
+| Component | Default | Switch | Implementation |
+| --- | --- | --- | --- |
+| [Shared clock](#shared-clock) | Enabled | `shared_clock` | [live_clock](../gamedata/scripts/sloptimizer_live_clock.script) |
+| [Markers](#markers) | Enabled | `markers` | [marker_updates](../gamedata/scripts/sloptimizer_marker_updates.script) |
+| [Injury display](#injury-display) | Enabled | `injury_display` | [body_health_display](../gamedata/scripts/sloptimizer_body_health_display.script) |
+| [Ledge rays](#ledge-rays) | Enabled | `ledge_ray_reuse` | [ledge_rays](../gamedata/scripts/sloptimizer_ledge_rays.script) |
+| [Callback cache](#callback-cache) | Enabled | `callback_cache` | [callback_dispatch](../gamedata/scripts/sloptimizer_callback_dispatch.script) |
+| [Ray query inputs](#ray-query-inputs) | Enabled | `ray_query_inputs` | [ray_queries](../gamedata/scripts/sloptimizer_ray_queries.script) |
+| [Light scans](#light-scans) | Disabled | `light_scan_cache` | [light_flicker](../gamedata/scripts/sloptimizer_light_flicker.script) |
+| [Offline peer panel](#offline-peer-panel) | Enabled | `offline_peer_panel` | [party_session](../gamedata/scripts/sloptimizer_party_session.script) |
+| [Peer field cache](#peer-field-cache) | Enabled | `peer_field_cache` | [party_fields](../gamedata/scripts/sloptimizer_party_fields.script) |
+| [Artifact metadata](#artifact-metadata) | Enabled | `artifact_kind_cache` | [artifact_metadata](../gamedata/scripts/sloptimizer_artifact_metadata.script) |
+| [Item update](#item-update) | Enabled | `item_updates` | [item_updates](../gamedata/scripts/sloptimizer_item_updates.script) |
+| [Artifact update](#artifact-update) | Enabled | `artifact_updates` | [artifact_updates](../gamedata/scripts/sloptimizer_artifact_updates.script) |
+| [Projection](#projection) | Enabled | `marker_projection` | [marker_projection](../gamedata/scripts/sloptimizer_marker_projection.script) |
+| [Radiation](#radiation) | Enabled | `radiation_display` | [radiation_display](../gamedata/scripts/sloptimizer_radiation_display.script) |
+| [Task checks](#task-checks) | Enabled | `task_checks` | [task_checks](../gamedata/scripts/sloptimizer_task_checks.script) |
+| [Vision world light](#vision-world-light) | Disabled | `vision_light_frame` | [world_lighting](../gamedata/scripts/sloptimizer_world_lighting.script) |
+| [Visibility read reduction](#visibility-read-reduction) | Disabled | `visibility_reads` | [visibility](../gamedata/scripts/sloptimizer_visibility.script) |
+| [Device read reduction](#device-read-reduction) | Enabled | `device_updates` | [device_updates](../gamedata/scripts/sloptimizer_device_updates.script) |
+| [Lamp save buffers](#lamp-save-buffers) | Enabled | `lamp_save_buffers` | [lamp_save_buffers](../gamedata/scripts/sloptimizer_lamp_save_buffers.script) |
 
 ## Shared clock
 
 Source: [`sloptimizer_live_clock.script`](../gamedata/scripts/sloptimizer_live_clock.script)  
 Switch: `shared_clock`  
-Component ID: `shared_clock`
+Component ID: `shared_clock`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: No optional script modules listed; see installer for engine/API requirements.
 
 * `_G.time_global`
 
@@ -22,7 +44,9 @@ State/behavior: Global scope. Device lifetime assumptions matter; time values ar
 
 Source: [`sloptimizer_marker_updates.script`](../gamedata/scripts/sloptimizer_marker_updates.script)  
 Switch: `markers`  
-Component ID: `markers`
+Component ID: `markers`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `utils_catspaw_hudmarks`, `ui_hud_dotmarks`
 
 * `utils_catspaw_hudmarks.marker_is_offscreen`
 * `utils_catspaw_hudmarks.dotproduct_for_pos`
@@ -35,7 +59,9 @@ State/behavior: Full checks follow marker intervals. World positions can be stal
 
 Source: [`sloptimizer_body_health_display.script`](../gamedata/scripts/sloptimizer_body_health_display.script)  
 Switch: `injury_display`  
-Component ID: `injury_display`
+Component ID: `injury_display`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `zzz_player_injuries`
 
 * `zzz_player_injuries.actor_on_update::HUDUpdate`
 
@@ -47,7 +73,9 @@ State/behavior: Display can lag by the configured interval (33 ms default). Heal
 
 Source: [`sloptimizer_ledge_rays.script`](../gamedata/scripts/sloptimizer_ledge_rays.script)  
 Switch: `ledge_ray_reuse`  
-Component ID: `ledge_rays`
+Component ID: `ledge_rays`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `demonized_ledge_grabbing`, `demonized_geometry_ray`, `axr_main`
 
 * `demonized_ledge_grabbing.checkLedgeGrabbing`
 * `demonized_ledge_grabbing.checkLedgeGrabbing::dgr`
@@ -60,7 +88,9 @@ State/behavior: Ledge movement is gameplay-sensitive. Scope must not escape or s
 
 Source: [`sloptimizer_callback_dispatch.script`](../gamedata/scripts/sloptimizer_callback_dispatch.script)  
 Switch: `callback_cache`  
-Component ID: `callback_cache`
+Component ID: `callback_cache`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `axr_main`
 
 * `axr_main.make_callback`
 
@@ -72,7 +102,9 @@ State/behavior: Priorities remain live during traversal; equal/non-numeric prior
 
 Source: [`sloptimizer_ray_queries.script`](../gamedata/scripts/sloptimizer_ray_queries.script)  
 Switch: `ray_query_inputs`  
-Component ID: `ray_query_inputs`
+Component ID: `ray_query_inputs`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `demonized_geometry_ray`
 
 * `demonized_geometry_ray.geometry_ray.get`
 
@@ -84,7 +116,9 @@ State/behavior: Assumes native setters copy their inputs. Queries still run. Che
 
 Source: [`sloptimizer_light_flicker.script`](../gamedata/scripts/sloptimizer_light_flicker.script)  
 Switch: `light_scan_cache`  
-Component ID: `light_scans`
+Component ID: `light_scans`  
+Default: **Disabled - see [AI audit](AI-REVIEW.md)**  
+Required modules: `bind_light_furniture`
 
 * `bind_light_furniture.need_flicker`
 
@@ -96,7 +130,9 @@ State/behavior: Results can be stale for up to 100 ms by default. Emission bypas
 
 Source: [`sloptimizer_party_session.script`](../gamedata/scripts/sloptimizer_party_session.script)  
 Switch: `offline_peer_panel`  
-Component ID: `offline_peer_panel`
+Component ID: `offline_peer_panel`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `xrr_peer_hud`
 
 * `xrr_peer_hud.UIPeerList.Update`
 
@@ -108,7 +144,9 @@ State/behavior: Session changes are polled every 500 ms. Calls AddDialogToRender
 
 Source: [`sloptimizer_party_fields.script`](../gamedata/scripts/sloptimizer_party_fields.script)  
 Switch: `peer_field_cache`  
-Component ID: `peer_field_cache`
+Component ID: `peer_field_cache`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `xrr_peer_hud`
 
 * `xrr_peer_hud.UIPeerList.Update`
 
@@ -120,7 +158,9 @@ State/behavior: Keeps the original 500 ms interval. Portrait cache keys are fact
 
 Source: [`sloptimizer_artifact_metadata.script`](../gamedata/scripts/sloptimizer_artifact_metadata.script)  
 Switch: `artifact_kind_cache`  
-Component ID: `artifact_metadata`
+Component ID: `artifact_metadata`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `item_artefact`
 
 * `zz_item_artefact.SYS_GetParam`
 
@@ -132,7 +172,9 @@ State/behavior: Other parameter queries fall through. Runtime metadata edits out
 
 Source: [`sloptimizer_item_updates.script`](../gamedata/scripts/sloptimizer_item_updates.script)  
 Switch: `item_updates`  
-Component ID: `item_update`
+Component ID: `item_update`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `bind_item`
 
 * `bind_item.item_binder.update`
 
@@ -144,7 +186,9 @@ State/behavior: Native binder update still runs every call. Uses/condition remai
 
 Source: [`sloptimizer_artifact_updates.script`](../gamedata/scripts/sloptimizer_artifact_updates.script)  
 Switch: `artifact_updates`  
-Component ID: `artifact_update`
+Component ID: `artifact_update`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `item_artefact`
 
 * `item_artefact.artefact_binder.update`
 
@@ -156,7 +200,9 @@ State/behavior: The replacement retains randomization, save restoration, physics
 
 Source: [`sloptimizer_marker_projection.script`](../gamedata/scripts/sloptimizer_marker_projection.script)  
 Switch: `marker_projection`  
-Component ID: `projection`
+Component ID: `projection`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `utils_catspaw_hudmarks`, `ui_hud_dotmarks`
 
 * `utils_catspaw_hudmarks.world_to_ui`
 * `ui_hud_dotmarks.dot_eye`
@@ -169,7 +215,9 @@ State/behavior: Projection output is still engine-owned; camera values remain li
 
 Source: [`sloptimizer_radiation_display.script`](../gamedata/scripts/sloptimizer_radiation_display.script)  
 Switch: `radiation_display`  
-Component ID: `radiation`
+Component ID: `radiation`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `actor_status`
 
 * `actor_status.UIIndicators.Update`
 
@@ -181,7 +229,9 @@ State/behavior: Normal refresh and radiation calculations remain. Private pass/s
 
 Source: [`sloptimizer_task_checks.script`](../gamedata/scripts/sloptimizer_task_checks.script)  
 Switch: `task_checks`  
-Component ID: `task_checks`
+Component ID: `task_checks`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `task_manager`
 
 * `task_manager.CRandomTask.task_complete`
 * `task_manager.CRandomTask.task_fail`
@@ -194,7 +244,9 @@ State/behavior: Actor, precache_frame, forced status and last status are read li
 
 Source: [`sloptimizer_world_lighting.script`](../gamedata/scripts/sloptimizer_world_lighting.script)  
 Switch: `vision_light_frame`  
-Component ID: `vision_world_light`
+Component ID: `vision_world_light`  
+Default: **Disabled - see [AI audit](AI-REVIEW.md)**  
+Required modules: `visual_memory_manager`
 
 * `visual_memory_manager.lights_lum`
 
@@ -206,20 +258,24 @@ State/behavior: A second lighting change within the same engine frame is not obs
 
 Source: [`sloptimizer_visibility.script`](../gamedata/scripts/sloptimizer_visibility.script)  
 Switch: `visibility_reads`  
-Component ID: `visibility_read_reduction`
+Component ID: `visibility_read_reduction`  
+Default: **Disabled - see [AI audit](AI-REVIEW.md)**  
+Required modules: `visual_memory_manager`, `stealth_mcm`, `camp_lum`, `level_weathers`
 
 * `visual_memory_manager.get_visible_value`
 * `visual_memory_manager.get_visible_value::orig`
 
 Replace the reviewed visibility body, or replace only the orig upvalue inside the reviewed xrRazom wrapper. Skip flashlight lookups whose results cannot be used by the current branch.
 
-State/behavior: Visibility equations and memory updates remain in the replacement body. The outer multiplayer wrapper is preserved. Check day/night, flashlights, crouching and alert transitions when editing this path.
+State/behavior: The body contains the Stealth Crash Fix formulas, which do not match the installed Atmospherics variant. Its old filename/line guard accepts both. Do not enable this component without fixing version matching and preserving the winning upstream formula. The multiplayer wrapper is retained, but that alone does not establish compatible detection behavior.
 
 ## Device read reduction
 
 Source: [`sloptimizer_device_updates.script`](../gamedata/scripts/sloptimizer_device_updates.script)  
 Switch: `device_updates`  
-Component ID: `device_read_reduction`
+Component ID: `device_read_reduction`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `item_device`
 
 * `item_device.device_binder.update`
 
@@ -231,7 +287,9 @@ State/behavior: Power, NVG, emission and PDA branches remain. Object identity li
 
 Source: [`sloptimizer_lamp_save_buffers.script`](../gamedata/scripts/sloptimizer_lamp_save_buffers.script)  
 Switch: `lamp_save_buffers`  
-Component ID: `lamp_save_buffers`
+Component ID: `lamp_save_buffers`  
+Default: **Enabled, subject to dependency and source checks**  
+Required modules: `bind_light_furniture`, `hf_obj_manager`
 
 * `bind_light_furniture.placeable_light_wrapper.save_data`
 
@@ -241,7 +299,7 @@ State/behavior: Every condition write still happens. The reviewed manager copies
 
 ## Defaults and isolation
 
-Marker full-check intervals remain supplied by the marker. The limb display interval is 33 ms, lamp caching is 100 ms, and party polling/field refresh is 500 ms. World lighting is cached for one engine frame. These affect how fresh cached/display information is; they are not changes to the collector.
+Active defaults: marker full-check intervals come from the original marker; the limb display interval is 33 ms; party polling and field refresh are 500 ms. Dormant settings: lamp caching would use 100 ms and world lighting would cache one frame if their disabled components were enabled. See [configuration](CONFIGURATION.md).
 
 Use the named switch to disable a component, or add its component ID to `disabled_components` in the configuration file. Restart after changing it. Visibility lookups and world-light caching have independent switches (`visibility_reads` and `vision_light_frame`), as do device updates.
 

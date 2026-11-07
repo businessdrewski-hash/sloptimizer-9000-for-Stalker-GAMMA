@@ -12,7 +12,7 @@
     ],
     "mechanism": "Replace the reviewed global wrapper; retain one device handle and read its clock live on every call.",
     "reason": "Avoid repeatedly constructing/requesting the device wrapper.",
-    "review": "Global scope. Device lifetime assumptions matter; time values are not cached here. The refresh_aliases helper is NOT called: Anti-Lag anomaly upvalues are untouched."
+    "review": "Global scope. Device lifetime assumptions matter; time values are read live. Anti-Lag anomaly upvalues are untouched."
   },
   {
     "id": "markers",
@@ -296,7 +296,7 @@
     ],
     "mechanism": "Replace the reviewed visibility body, or replace only the orig upvalue inside the reviewed xrRazom wrapper.",
     "reason": "Skip flashlight lookups whose results cannot be used by the current branch.",
-    "review": "Visibility equations and memory updates remain in the replacement body. The outer multiplayer wrapper is preserved. 120 simulated comparisons matched, but this is not exhaustive stealth validation; test day/night, flashlights, crouching and alert transitions."
+    "review": "Disabled by default: the old guard also accepts Atmospherics, whose detection formulas differ. See docs/AI-REVIEW.md."
   },
   {
     "id": "device_read_reduction",

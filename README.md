@@ -1,29 +1,37 @@
-# Sloptimizer 9000 - readable source build
+# Sloptimizer 9000 for Stalker GAMMA
 
-**[Download the MO2-installable ZIP](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/download/v2.10.1-readable/Sloptimizer-9000-2.10.1-readable.zip)**
-**2.10.1-readable** is a maintainable source layout of the existing optimization pack. This readable release disables the visibility replacement, world-light frame cache and lamp-flicker cache following a compatibility audit. Other optimization defaults are retained. See [AI review](docs/AI-REVIEW.md). Each component has a descriptive filename and the same `install()` entry point.
+**[Download v2.10.1-readable for MO2](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/download/v2.10.1-readable/Sloptimizer-9000-2.10.1-readable.zip)**
 
-## Read or edit the code
+Sloptimizer reduces repeated Lua work and temporary allocations in supported GAMMA scripts. This experimental release organizes each optimization into a named module with independent configuration and startup reporting. It does not replace engine files or change GC settings.
 
-1. Start with [the module layout](docs/STRUCTURE.md).
-2. Find the function you want in [the patch map](docs/PATCHES.md).
-3. Edit its component under `gamedata/scripts`. Each file explains its purpose and the lifetime of its cached state.
-4. Change switches in `sloptimizer_config.script`, then restart the game.
+The visibility replacement, world-light frame cache and lamp-flicker result cache are **disabled by default** after the lighting audit. Lamp-save buffer reuse remains enabled. See [what the audit found](docs/AI-REVIEW.md).
 
-[Developer tools and checks](docs/DEVELOPMENT.md) are optional.
+## For modders
 
-## Install
+| I want to... | Start here |
+| --- | --- |
+| Understand how the pack starts and applies patches | [Architecture and code layout](docs/STRUCTURE.md) |
+| Find which function a component changes | [Patch map](docs/PATCHES.md) |
+| Disable a component or understand a setting | [Configuration](docs/CONFIGURATION.md) |
+| Trace a conflict or gameplay regression | [Troubleshooting](docs/TROUBLESHOOTING.md) |
+| Edit a component, run checks and build a ZIP | [Development workflow](docs/DEVELOPMENT.md) |
+| Inspect ownership reports or time an active patch | [Diagnostics](docs/DIAGNOSTICS.md) |
+| See what has and has not been tested | [Validation](docs/VALIDATION.md) |
 
-Close the game. Install this ZIP as a **new mod** in MO2 and disable any older Sloptimizer/optimization-pack version. Do not merge it into the old mod: runtime modules have been renamed and some split into separate files.
+## Install or update
 
-Enable it below the mods it optimizes. Anti-Lag is optional; if used, place this pack below it. Keep the original target mods enabled. This does not replace engine binaries or alter GC settings.
+1. Close the game and install the ZIP as a **new mod** in MO2.
+2. Disable older Sloptimizer versions. **Do not merge** with an older installation: module names changed, and old startup scripts must not remain active.
+3. Place this mod below the original mods it optimizes in MO2's left pane. Keep those original mods enabled.
+4. Anti-Lag by **Jack_Harris** is optional. If used, place Sloptimizer below it. A Sloptimizer component can skip an unsupported Anti-Lag variant rather than replacing it.
+5. Launch and allow about ten seconds after loading. Check `appdata/logs/gamma-optimization-status.txt` for the installed components.
 
-To carry over custom settings, use the switch names in the patch map rather than copying an older configuration file. To remove the pack, disable it and restart.
+No individual optional mod, including Interaction Dots or xrRazom, is required for the whole pack. Components check their own prerequisites. Supported versions still matter; missing or incompatible targets are not automatically optimized.
 
-## Credits
+To remove the pack, disable it in MO2 and restart. To migrate custom settings, consult [configuration](docs/CONFIGURATION.md) rather than copying the old config file wholesale.
 
-Credit to the original authors of the GAMMA and xrRazom mods whose functions are optimized here. Anti-Lag is by Jack_Harris. The underlying mod logic retains its original authorship; this package does not grant new rights over it.
+## Scope and credits
 
-## Release notes and validation
+This build has portable checks and a prior readability-build startup test; the conservative lighting defaults have not had a new FPS benchmark or exhaustive live combat/co-op test. Historical benchmark assets in the repository describe earlier versions. See [validation](docs/VALIDATION.md) and [release notes](docs/RELEASE-NOTES.md).
 
-See [release notes](docs/RELEASE-NOTES.md) and the [AI audit](docs/AI-REVIEW.md). Historical benchmark assets retained in the repository describe earlier versions, not this release’s conservative defaults.
+Credit to the original GAMMA and xrRazom mod authors whose functions this pack adapts. Anti-Lag is by Jack_Harris. Original mod logic retains its original authorship; this package does not grant new rights over it.

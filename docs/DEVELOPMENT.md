@@ -1,10 +1,17 @@
-# Developer tools
+# Development workflow
 
-These tools are secondary to the source. Normal play does not require Python, a profiler, or a benchmark tool.
+## Make a focused edit
 
-## Validate and build
+1. Use an isolated MO2 profile and a separate copy of this mod. Keep the original target mods enabled and disable older Sloptimizer versions.
+2. Use the [patch map](PATCHES.md) to find the component. Read its installer and the actual winning upstream implementation.
+3. Identify its contract: return values, side effects, mutable private state, callback order, ownership of reused objects, and when cached results expire or reset.
+4. Edit the component itself. For an embedded body, edit the source string in that module. Keep upstream upvalue names intact unless also reviewing the binding helper.
+5. Add a regression check that compares observable behavior with the original. Exercise mutation, missing objects, transitions, re-entry and fallback where relevant.
+6. Run checks, build, install the new ZIP as a separate mod, restart, and verify its startup report before testing the changed behavior.
 
-From the extracted package root:
+## Portable checks and packaging
+
+From the extracted package root, with Python and a compatible Lupa wheel available:
 
 ```text
 python -m pip install -r tests/requirements.txt
@@ -12,33 +19,35 @@ python tests/run_checks.py
 python tools/build_zip.py
 ```
 
-The portable tests cover dependency handling, independent switches, diagnostic call semantics, split-module loading and shared mutable state. Local regression fixtures also exercise callback ordering, marker projection, artifacts, visibility, devices, lamp caching and rays. The validation note records this build's check; it is not an FPS comparison.
+The default ZIP is written beside the extracted package folder. An explicit destination is supported:
 
-## Startup reports
-
-The active appdata log directory receives `gamma-optimization-status.txt` and `sloptimizer-patch-report.txt`. These identify active/skipped components, exact target paths and observed function sources. A fresh report can be requested through a Lua debug executor:
-
-```lua
-sloptimizer_diagnostics.write_report()
+```text
+python tools/build_zip.py --output path/to/test-build.zip
 ```
 
-Function identity does not observe every state change. A later replacement may be another component in this pack. Use the patch map and a component-off restart to isolate behavior.
+The builder includes source, docs, tests and tools, excludes Python bytecode caches, and verifies archived file contents. It does not run the tests, install the mod, launch the game or publish to GitHub. The ZIP name is fixed in the tool; update it deliberately when preparing a new version.
 
-## Optional timing
+| Included check | Main coverage |
+| --- | --- |
+| `test_optional_mods.py` | Missing/unsupported modules, initializer fault isolation, individual switches, and preservation of disabled lighting targets. Its broad activation scenarios deliberately enable switches in fixtures; the shipping-default test is separate. |
+| `test_diagnostics.py` | Return/error behavior, timing lifecycle, target ownership and unsupported timing cases. |
+| `test_split_modules.py` | Module loading, live clock fallback and mutable upvalue sharing. |
+| `test_lamp_saves.py` | Original versus optimized writes, per-lamp state, saved snapshots and manager replacement. |
 
-Keep `diagnostic_timing_targets = {}` for normal play. For a short measurement, set a target path in that list before restart, or use an existing Lua debug executor:
+The broader historical callback, artifact, marker and device suites used during development are not all bundled here. Do not interpret the portable runner as complete coverage of every optimization. See [validation](VALIDATION.md).
 
-```lua
-sloptimizer_diagnostics.start_timing('bind_light_furniture.need_flicker')
--- Perform the action you want to inspect.
-sloptimizer_diagnostics.write_report()
-sloptimizer_diagnostics.stop_timing('bind_light_furniture.need_flicker')
-```
+The separate `tools/audit_visibility.py` requires the named upstream mods in a supplied mods directory. It compares Lua behavior under simulated engine inputs and records input hashes; it does not simulate a whole combat encounter. Usage is in the [AI audit](AI-REVIEW.md).
 
-Export before stopping, which discards the totals. The wrapper measures inclusive elapsed microseconds using the engine timer: child work, encountered GC and instrumentation overhead are included. Nested totals overlap. This is not a per-mod GC ownership measurement or a frame-present recorder.
+## Add or change a component
 
-Timing is off by default. It changes call overhead and protected-call behavior, so do not use it on yielding coroutine paths or leave it on for a final performance benchmark. Stopping refuses to overwrite a later replacement by another writer.
+Keep these aligned:
 
-## Editing safely
+* Runtime: component `install()`, `sloptimizer_registry.script`, and `sloptimizer_config.script`.
+* Fixtures: `tests/optional_components.json` and `tests/components.json`; update hardcoded component counts in tests when changing the registry size.
+* Documentation: [patch map](PATCHES.md), [configuration](CONFIGURATION.md), source comments and validation scope.
 
-Keep the runtime registry, configuration and patch map aligned. Do not change a source guard merely to force installation on an unfamiliar version. Review cache lifetime, mutation and fallback assumptions first. For a gameplay issue, reproduce the same action with the relevant component disabled and restart between configurations.
+The registry is authoritative for runtime order and target observation paths. JSON fixtures are not used by the game and must not be treated as a second live registry. Upstream filenames and line numbers are only partial guards: different bodies can share them.
+
+## Measure after checking behavior
+
+Use [diagnostics](DIAGNOSTICS.md) to locate expensive calls. Compare frame times with instrumentation disabled for performance claims. A lower allocation count or passing functional test does not by itself establish smoother frames. Do not combine nested inclusive timings into a total.

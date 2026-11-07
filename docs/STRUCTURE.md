@@ -8,7 +8,7 @@ Runtime modules are flat because X-Ray loads scripts by their module names. Logi
 * `sloptimizer_registry.script` lists components in installation order: module, switch, dependencies, argument and target functions.
 * `sloptimizer_config.script` contains user-editable switches and intervals.
 
-Each component exports `install()`, returning a boolean and a reason. Missing or unsupported targets skip without preventing other components from installing. Source guards belong to the component, alongside the assignment that applies its patch.
+Each component exports `install(...)`, returning a boolean and a reason; some accept a configuration interval. Missing or unsupported targets skip without preventing other components from installing. Source guards belong to the component, alongside the assignment that applies its patch.
 
 ## Components
 
@@ -33,7 +33,7 @@ Edit those bodies in their component file. Preserve names that refer to upstream
 
 ## Code conventions
 
-* Pure `make_*` factories build wrappers or replacement functions; `install()` performs source checks and changes the target.
+* `make_*` factories construct wrappers or replacements and may capture engine state; `install()` performs source checks and changes the target.
 * Comments describe cache ownership, invalidation and assumptions next to the relevant logic.
 * Engine/module names and upstream formula variable names are retained where they identify an external contract.
 * Existing `gamma_opt_*` fields on individual UI/binder objects are private cached state, not old modules that must remain installed.
@@ -44,3 +44,19 @@ Edit those bodies in their component file. Preserve names that refer to upstream
 Keep the registry order unless reviewing the dependency: ledge installation inspects the original callback registry before callback replacement; artifact metadata installs before artifact updates; party-session polling installs before party-field HUD recreation.
 
 The refactor changes organization and names, not those ordering relationships. Restart after editing; there is no general-purpose hot-uninstall mechanism.
+
+## Startup sequence
+
+1. The engine calls `sloptimizer_bootstrap.on_game_start()`, which registers an actor-update callback.
+2. The callback waits for the actor and about five seconds after its first update. It then calls `start()` once.
+3. For each registry entry, startup observes target identities, checks the switch and disabled-ID table, checks dependencies, and calls the installer under `pcall`.
+4. Each component records ACTIVE, SKIPPED, DISABLED or ERROR. One failure does not prevent later attempts, but partial writes by a failing installer are not rolled back.
+5. Startup writes status/provenance reports and optionally installs explicitly configured timing wrappers.
+
+The code patches live Lua functions; it does not rewrite the upstream files on disk. Depending on the component, it wraps a function, replaces its body, changes an upvalue or adjusts UI callback registration. Disabling the mod takes effect after restarting, when upstream scripts load again.
+
+## Authoritative files
+
+Runtime behavior lives in `gamedata/scripts`. The registry defines installation order and observation targets; configuration defines defaults. Test JSON files describe fixtures, and docs explain the contracts. They do not generate the runtime code. `tools/build_zip.py` packages existing files rather than generating replacements.
+
+The three disabled lighting/visibility components remain in the source for review. Their presence does not mean they are active. See [configuration](CONFIGURATION.md) and [diagnostics](DIAGNOSTICS.md).
