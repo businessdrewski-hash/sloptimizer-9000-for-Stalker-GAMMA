@@ -1,4 +1,4 @@
-# Sloptimizer 9000 â€” readable source build
+# Sloptimizer 9000 - readable source build
 
 **[Download the MO2-installable ZIP](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/download/v2.10.1-readable/Sloptimizer-9000-2.10.1-readable.zip)**
 **2.10.1-readable** is a maintainable source layout of the existing optimization pack. This readable release disables the visibility replacement, world-light frame cache and lamp-flicker cache following a compatibility audit. Other optimization defaults are retained. See [AI review](docs/AI-REVIEW.md). Each component has a descriptive filename and the same `install()` entry point.
