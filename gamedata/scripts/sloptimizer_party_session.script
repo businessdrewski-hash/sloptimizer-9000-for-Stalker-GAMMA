@@ -1,0 +1,64 @@
+-- Removes the offline party HUD from rendering and restores it on session entry.
+-- Polls every 500 ms and tracks HUD recreation; does not own the party-field update algorithm.
+
+local peer_installed = false
+local make_clock = sloptimizer_device_clock.make_clock
+function make_peer_poller(mod)
+    local hidden, last, last_hud
+    local clock = make_clock()
+    return function()
+        local now = clock()
+        if last and now >= last and now - last < 500 then
+            return
+        end
+        last = now
+        local current = mod.HUD
+        if hidden and current ~= hidden then
+            hidden = nil
+        end
+        if not current then
+            last_hud = nil
+            return
+        end
+        local in_session = XrrIsHosted() or XrrIsConnected()
+        if in_session then
+            if hidden == current then
+                get_hud():AddDialogToRender(current)
+                hidden = nil
+                current:Update(true)
+            end
+        elseif hidden ~= current then
+            -- Original forced update hides slots and restores companion placement.
+            current:Update(true)
+            get_hud():RemoveDialogToRender(current)
+            hidden = current
+        end
+        last_hud = current
+    end
+end
+-- Installation: validate the upstream implementation before changing it.
+function install()
+    if
+        type(rawget(_G, 'XrrIsHosted')) ~= 'function'
+        or type(rawget(_G, 'XrrIsConnected')) ~= 'function'
+        or type(rawget(_G, 'XrrPlayers')) ~= 'function'
+    then
+        return false, 'xrRazom engine not present; multiplayer-only feature skipped'
+    end
+
+    if peer_installed then
+        return true, 'already active'
+    end
+    local mod = xrr_peer_hud
+    if not mod or not mod.UIPeerList then
+        return false, 'peer HUD not present'
+    end
+    local fn = mod.UIPeerList.Update
+    local d = type(fn) == 'function' and debug.getinfo(fn, 'S')
+    if not d or not d.source:match('xrr_peer_hud%.script$') or d.linedefined ~= 174 then
+        return false, 'peer HUD implementation differs from reviewed build'
+    end
+    RegisterScriptCallback('actor_on_update', make_peer_poller(mod))
+    peer_installed = true
+    return true, 'offline peer panel removed from render updates; session changes polled every 500 ms'
+end

@@ -1,3 +1,6 @@
+-- Dispatches callbacks using a cached initial heap and depth-local work buffers.
+-- Registry additions/removals/priority changes rebuild the template. Ambiguous ordering falls back.
+
 -- Callback dispatch: cached ordering and reusable traversal buffers.
 
 local installed = false
@@ -28,12 +31,12 @@ local function sift(keys, index, n, t)
         local child_priority = t[keys[child]]
         if child < n then
             local right_priority = t[keys[child + 1]]
-            if (right_priority ~= nil and (child_priority == nil or right_priority < child_priority)) then
+            if right_priority ~= nil and (child_priority == nil or right_priority < child_priority) then
                 child = child + 1
                 child_priority = right_priority
             end
         end
-        if (child_priority ~= nil and (priority == nil or child_priority < priority)) then
+        if child_priority ~= nil and (priority == nil or child_priority < priority) then
             keys[index] = keys[child]
             index = child
         else
@@ -146,7 +149,8 @@ function make_dispatch(original, registry)
     end
 end
 
-function start()
+-- Installation: validate the upstream implementation before changing it.
+function install()
     if installed then
         return true, 'already active'
     end

@@ -1,0 +1,41 @@
+-- AI review: light_scan_cache, vision_light_frame and visibility_reads are disabled.
+-- See docs/AI-REVIEW.md before considering any opt-in.
+-- Edit switches here, then restart the game. See docs/PATCHES.md for exact targets.
+-- Set an individual component ID to true here to disable only that component.
+disabled_components = {}
+
+-- Rendering and interaction
+markers = true
+marker_projection = true
+light_scan_cache = false
+light_scan_interval_ms = 100
+shared_light_scan = true
+vision_light_frame = false
+visibility_reads = false
+
+-- HUD displays
+injury_display = true
+injury_display_interval_ms = 33
+radiation_display = true
+
+-- Item, artifact and device updates
+item_updates = true
+artifact_updates = true
+artifact_kind_cache = true
+device_updates = true
+lamp_save_buffers = true
+
+-- Shared script infrastructure and movement
+shared_clock = true
+callback_cache = true
+task_checks = true
+ledge_ray_reuse = true
+ray_query_inputs = true
+
+-- Multiplayer HUD; skipped when the required engine/scripts are absent
+offline_peer_panel = true
+peer_field_cache = true
+
+-- Optional developer timing. Empty for normal play.
+-- Example: { 'bind_light_furniture.need_flicker' }
+diagnostic_timing_targets = {}

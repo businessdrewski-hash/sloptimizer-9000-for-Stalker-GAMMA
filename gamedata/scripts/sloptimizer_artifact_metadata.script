@@ -1,3 +1,6 @@
+-- Caches static artifact kind metadata in the artifact module environment.
+-- Nil and empty defaults use separate caches; load/option-change callbacks clear them.
+
 -- Artifact kind metadata cache.
 
 local installed = false
@@ -26,7 +29,8 @@ function make_kind_cache(original)
     end
     return get, clear
 end
-function start()
+-- Installation: validate the upstream implementation before changing it.
+function install()
     if installed then
         return true, 'already active'
     end

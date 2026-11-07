@@ -1,17 +1,17 @@
 [
   [
     "shared_clock",
-    "shared clock",
-    "gamma_opt_clock",
-    "start",
+    "Shared clock",
+    "sloptimizer_live_clock",
+    "install",
     [],
     null
   ],
   [
     "markers",
-    "markers",
-    "gamma_opt_markers",
-    "start",
+    "Markers",
+    "sloptimizer_marker_updates",
+    "install",
     [
       "utils_catspaw_hudmarks",
       "ui_hud_dotmarks"
@@ -20,9 +20,9 @@
   ],
   [
     "injury_display",
-    "injury display",
-    "gamma_opt_injury",
-    "start",
+    "Injury display",
+    "sloptimizer_body_health_display",
+    "install",
     [
       "zzz_player_injuries"
     ],
@@ -30,9 +30,9 @@
   ],
   [
     "ledge_ray_reuse",
-    "ledge rays",
-    "gamma_opt_ledge",
-    "start",
+    "Ledge rays",
+    "sloptimizer_ledge_rays",
+    "install",
     [
       "demonized_ledge_grabbing",
       "demonized_geometry_ray",
@@ -42,9 +42,9 @@
   ],
   [
     "callback_cache",
-    "callback cache",
-    "gamma_opt_callbacks",
-    "start",
+    "Callback cache",
+    "sloptimizer_callback_dispatch",
+    "install",
     [
       "axr_main"
     ],
@@ -52,9 +52,9 @@
   ],
   [
     "ray_query_inputs",
-    "ray query inputs",
-    "gamma_opt_ray_query",
-    "start",
+    "Ray query inputs",
+    "sloptimizer_ray_queries",
+    "install",
     [
       "demonized_geometry_ray"
     ],
@@ -62,9 +62,9 @@
   ],
   [
     "light_scan_cache",
-    "light scans",
-    "gamma_opt_environment",
-    "start_lights",
+    "Light scans",
+    "sloptimizer_light_flicker",
+    "install",
     [
       "bind_light_furniture"
     ],
@@ -72,9 +72,9 @@
   ],
   [
     "offline_peer_panel",
-    "offline peer panel",
-    "gamma_opt_environment",
-    "start_peers",
+    "Offline peer panel",
+    "sloptimizer_party_session",
+    "install",
     [
       "xrr_peer_hud"
     ],
@@ -82,9 +82,9 @@
   ],
   [
     "peer_field_cache",
-    "peer field cache",
-    "gamma_opt_peer_fields",
-    "start",
+    "Peer field cache",
+    "sloptimizer_party_fields",
+    "install",
     [
       "xrr_peer_hud"
     ],
@@ -92,39 +92,39 @@
   ],
   [
     "artifact_kind_cache",
-    "artifact metadata",
-    "gamma_opt_items",
-    "start",
+    "Artifact metadata",
+    "sloptimizer_artifact_metadata",
+    "install",
     [
       "item_artefact"
     ],
     null
   ],
   [
-    "v2_item_updates",
-    "V2 item update",
-    "gamma_opt_item_v2",
-    "start",
+    "item_updates",
+    "Item update",
+    "sloptimizer_item_updates",
+    "install",
     [
       "bind_item"
     ],
     null
   ],
   [
-    "v2_artifact_updates",
-    "V2 artifact update",
-    "gamma_opt_artifact_v2",
-    "start",
+    "artifact_updates",
+    "Artifact update",
+    "sloptimizer_artifact_updates",
+    "install",
     [
       "item_artefact"
     ],
     null
   ],
   [
-    "v2_projection",
-    "V2 projection",
-    "gamma_opt_projection_v2",
-    "start",
+    "marker_projection",
+    "Projection",
+    "sloptimizer_marker_projection",
+    "install",
     [
       "utils_catspaw_hudmarks",
       "ui_hud_dotmarks"
@@ -132,20 +132,20 @@
     null
   ],
   [
-    "v2_radiation",
-    "V2 radiation",
-    "gamma_opt_radiation_v2",
-    "start",
+    "radiation_display",
+    "Radiation",
+    "sloptimizer_radiation_display",
+    "install",
     [
       "actor_status"
     ],
     null
   ],
   [
-    "v2_task_checks",
-    "V2 task checks",
-    "gamma_opt_tasks_v2",
-    "start",
+    "task_checks",
+    "Task checks",
+    "sloptimizer_task_checks",
+    "install",
     [
       "task_manager"
     ],
@@ -153,19 +153,19 @@
   ],
   [
     "vision_light_frame",
-    "vision world light",
-    "gamma_opt_vision_light",
-    "start",
+    "Vision world light",
+    "sloptimizer_world_lighting",
+    "install",
     [
       "visual_memory_manager"
     ],
     null
   ],
   [
-    "native_read_reduction",
-    "visibility read reduction",
-    "gamma_opt_native_reads",
-    "start_vision",
+    "visibility_reads",
+    "Visibility read reduction",
+    "sloptimizer_visibility",
+    "install",
     [
       "visual_memory_manager",
       "stealth_mcm",
@@ -175,10 +175,10 @@
     null
   ],
   [
-    "native_read_reduction",
-    "device read reduction",
-    "gamma_opt_native_reads",
-    "start_device",
+    "device_updates",
+    "Device read reduction",
+    "sloptimizer_device_updates",
+    "install",
     [
       "item_device"
     ],
@@ -186,9 +186,9 @@
   ],
   [
     "lamp_save_buffers",
-    "lamp save buffers",
-    "gamma_opt_churn",
-    "start_lamp_buffers",
+    "Lamp save buffers",
+    "sloptimizer_lamp_save_buffers",
+    "install",
     [
       "bind_light_furniture",
       "hf_obj_manager"

@@ -1,3 +1,6 @@
+-- Schedules full marker checks while projecting simple visible dots between checks.
+-- Per-marker scratch vectors and deadlines live with the marker. A clock rollback resets deadlines.
+
 -- Interaction markers: scheduled checks and smooth screen positioning.
 
 local installed = false
@@ -107,7 +110,17 @@ local function fast_position(m, now)
     CUIScriptWnd.Update(m)
 end
 
-function start()
+-- Installation: validate the upstream implementation before changing it.
+function install()
+    local original = utils_catspaw_hudmarks and utils_catspaw_hudmarks.marker_is_offscreen
+    local source = type(original) == 'function' and debug.getinfo(original, 'S')
+    if
+        not source
+        or not source.source:match('utils_catspaw_hudmarks%.script$')
+        or source.linedefined ~= 1738
+    then
+        return false, 'marker implementation differs'
+    end
     assert(not installed, 'Smooth patch already installed')
     local util = utils_catspaw_hudmarks
     original_precheck = assert(util.marker_is_offscreen)
@@ -154,6 +167,7 @@ function start()
         return blocked
     end
     installed = true
+    return true, 'smooth projection / scheduled semantic checks'
 end
 
 function counters()

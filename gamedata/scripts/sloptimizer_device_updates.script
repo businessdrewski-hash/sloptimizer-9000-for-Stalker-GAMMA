@@ -1,0 +1,158 @@
+-- Keeps device power/NVG/PDA behavior while retaining device identity.
+-- Parent and condition remain live. Mutable save-state cells are shared with the original.
+
+local installed = false
+
+-- Compiled once during installation to share the original mutable upvalue cells.
+-- Edit this body here; sloptimizer_function_binding supplies the binding mechanics.
+local replacement_body = [====[
+function(self, delta)
+    object_binder.update(self, delta)
+
+    local obj = self._gamma_opt_device_object
+    if not obj then
+        obj = self.object
+        self._gamma_opt_device_object = obj
+    end
+    local id = self._gamma_opt_device_id
+    local sec = self._gamma_opt_device_section
+    if id == nil then
+        id = obj:id()
+        sec = obj:section()
+        self._gamma_opt_device_id = id
+        self._gamma_opt_device_section = sec
+    end
+    local parent = obj:parent()
+
+    if not self.first_update then
+        self.first_update = true
+
+        -- Process devices belongs to others
+        if parent and (parent:id() ~= AC_ID) then
+            -- Process devices belongs to stalkers
+            if IsStalker(parent) then
+                -- Set up profiles of spawned PDA
+                if device_npc_pda[sec] and (not se_load_var(id, obj:name(), 'info')) then
+                    ui_pda_npc_tab.register_pda(parent, sec, id)
+                end
+
+                --[[ if stalker is not a trader, set custom power
+				if utils_obj.is_trader(parent) then
+					local cond_set = (math.random(30,70)/100)
+					alife_process_item( sec , id , {cond = cond_set} )
+				end
+				--]]
+            end
+        end
+
+        -- set up stored power for device on first update
+        if dev_condition[id] then
+            obj:set_condition(dev_condition[id])
+            --print_dbg("[%s] power restored from save: %s", obj:name(), dev_condition[id])
+        end
+
+        return
+    end
+
+    -- store updated device power
+    local cond = obj:condition()
+    dev_condition[id] = cond
+
+    -- only process device power if it belongs to actor
+    if parent and (parent:id() == AC_ID) and (self.type ~= false) then
+        -- set type
+        if self.type == nil then
+            local cls = ini_sys:r_string_ex(sec, 'class')
+            if dev_type[cls] then
+                self.type = dev_type[cls]
+                --print_dbg("[%s] type detected: %s", obj:name(), dev_type[cls])
+            else
+                self.type = false
+                --print_dbg("[%s] type not found", obj:name())
+            end
+        end
+
+        -- night-vision/light management
+        if self.type == 'TORCH' then
+            self:process_torch(id, sec, cond)
+        end
+
+        if dev_consumption[sec] and (cond > dev_critical[sec]) then
+            -- No need to process unequipped devices
+            if dev_slot[id] then
+                if self.N_V then
+                    -- Emissions: the closer the wave, the higher the psi influnces
+                    if GetEvent('surge', 'state') then
+                        local surge_time = GetEvent('surge', 'time') or 0
+                        local val_glitch = (surge_time > 168) and normalize(surge_time, 220, 168)
+                            or normalize(surge_time, 20, 168)
+                        z_beefs_nvgs.nvg_glitch(clamp(val_glitch, 0.0, 0.9))
+                        nv_glitch_state = true
+
+                        -- Psi-storms: huge spike when a vortex hits the ground
+                    elseif GetEvent('psi_storm', 'state') then
+                        if GetEvent('psi_storm', 'vortex') then
+                            z_beefs_nvgs.nvg_glitch(0.9)
+                            nv_glitch_state = true
+                        else
+                            z_beefs_nvgs.nvg_glitch(0.2)
+                            nv_glitch_state = true
+                        end
+                        -- NVG doesn't get affected in normal cases
+                    else
+                        if nv_glitch_state then
+                            z_beefs_nvgs.nvg_glitch(0.0)
+                            nv_glitch_state = false
+                        end
+                    end
+                end
+
+                -- Light flicker on event for flashlights
+                if self.type == 'FLASH' then
+                    self:process_flicker()
+                end
+
+                -- Glitch effect on event for PDA
+                if self.type == 'PDA' then
+                    self:process_glitch(id, sec, cond)
+                end
+            end
+
+            -- drain device power if its active
+            self:process_power(id, sec, cond)
+        end
+    end
+end
+]====]
+
+-- Installation: validate the upstream implementation before changing it.
+function install()
+    if installed then
+        return true, 'already active'
+    end
+    local binder_class = item_device and item_device.device_binder
+    local original = binder_class and binder_class.update
+    local source_info = type(original) == 'function' and debug.getinfo(original, 'S')
+    if
+        not source_info
+        or not source_info.source:match('item_device%.script$')
+        or source_info.linedefined ~= 700
+    then
+        return false, 'device implementation differs'
+    end
+    local replacement, error_message = sloptimizer_function_binding.bind_body(
+        original,
+        replacement_body,
+        '@sloptimizer_device_updates.script'
+    )
+    if not replacement then
+        return false, tostring(error_message)
+    end
+    binder_class.update = replacement
+    installed = true
+    return true, 'retained device identity; live power logic preserved'
+end
+
+function replacement_source()
+    return replacement_body
+end

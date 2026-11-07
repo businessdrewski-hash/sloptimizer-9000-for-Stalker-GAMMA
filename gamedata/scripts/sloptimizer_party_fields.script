@@ -1,3 +1,7 @@
+-- Updates party widgets only when their values change.
+-- Forced/option-change updates clear caches. Portrait keys are outfit and faction; cadence stays
+-- 500 ms.
+
 -- xrRazom party HUD: update fields only when their values change.
 
 local installed = false
@@ -97,7 +101,8 @@ function update(self, force)
         set_field(self.slots[i], 'shown', self.slots[i].base, 'Show', false)
     end
 end
-function start()
+-- Installation: validate the upstream implementation before changing it.
+function install()
     if
         type(rawget(_G, 'XrrIsHosted')) ~= 'function'
         or type(rawget(_G, 'XrrIsConnected')) ~= 'function'

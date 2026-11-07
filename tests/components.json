@@ -1,0 +1,336 @@
+[
+  {
+    "id": "shared_clock",
+    "switch": "shared_clock",
+    "label": "Shared clock",
+    "module": "sloptimizer_live_clock",
+    "method": "install",
+    "dependencies": [],
+    "argument": null,
+    "targets": [
+      "_G.time_global"
+    ],
+    "mechanism": "Replace the reviewed global wrapper; retain one device handle and read its clock live on every call.",
+    "reason": "Avoid repeatedly constructing/requesting the device wrapper.",
+    "review": "Global scope. Device lifetime assumptions matter; time values are not cached here. The refresh_aliases helper is NOT called: Anti-Lag anomaly upvalues are untouched."
+  },
+  {
+    "id": "markers",
+    "switch": "markers",
+    "label": "Markers",
+    "module": "sloptimizer_marker_updates",
+    "method": "install",
+    "dependencies": [
+      "utils_catspaw_hudmarks",
+      "ui_hud_dotmarks"
+    ],
+    "argument": null,
+    "targets": [
+      "utils_catspaw_hudmarks.marker_is_offscreen",
+      "utils_catspaw_hudmarks.dotproduct_for_pos"
+    ],
+    "mechanism": "Wrap the marker precheck; replace hover-direction calculation when a retained device is available.",
+    "reason": "Suppress duplicate checks and move simple visible dots between full semantic checks, reusing vectors.",
+    "review": "Full checks follow marker intervals. World positions can be stale between them; rich labels, pickup animations and custom end callbacks use the original pipeline. Check moving objects, hover, pickups, camera turns and PDA transitions."
+  },
+  {
+    "id": "injury_display",
+    "switch": "injury_display",
+    "label": "Injury display",
+    "module": "sloptimizer_body_health_display",
+    "method": "install",
+    "dependencies": [
+      "zzz_player_injuries"
+    ],
+    "argument": "injury_display_interval_ms",
+    "targets": [
+      "zzz_player_injuries.actor_on_update::HUDUpdate"
+    ],
+    "mechanism": "Replace the private HUDUpdate upvalue with a throttling wrapper.",
+    "reason": "Avoid redrawing the limb display on every actor update.",
+    "review": "Display can lag by the configured interval (33 ms default). Health logic in actor_on_update still runs. Check healing previews and limb display transitions."
+  },
+  {
+    "id": "ledge_rays",
+    "switch": "ledge_ray_reuse",
+    "label": "Ledge rays",
+    "module": "sloptimizer_ledge_rays",
+    "method": "install",
+    "dependencies": [
+      "demonized_ledge_grabbing",
+      "demonized_geometry_ray",
+      "axr_main"
+    ],
+    "argument": null,
+    "targets": [
+      "demonized_ledge_grabbing.checkLedgeGrabbing",
+      "demonized_ledge_grabbing.checkLedgeGrabbing::dgr"
+    ],
+    "mechanism": "Wrap the ledge callback, replace its dgr upvalue with a constructor proxy, and swap its actor callback registry entry at the original priority.",
+    "reason": "Reuse sequential rays within one synchronous ledge check; produce only the result fields that the reviewed consumer reads.",
+    "review": "Ledge movement is gameplay-sensitive. Scope must not escape or survive a check. Unknown arguments fall back to the original constructor. Common Anti-Lag variants fail the source guard and skip this component."
+  },
+  {
+    "id": "callback_cache",
+    "switch": "callback_cache",
+    "label": "Callback cache",
+    "module": "sloptimizer_callback_dispatch",
+    "method": "install",
+    "dependencies": [
+      "axr_main"
+    ],
+    "argument": null,
+    "targets": [
+      "axr_main.make_callback"
+    ],
+    "mechanism": "Replace the dispatcher with a cached initial heap and reusable per-recursion traversal arrays.",
+    "reason": "Avoid rebuilding ordering and temporary buffers for unchanged callback registries.",
+    "review": "Priorities remain live during traversal; equal/non-numeric priorities and metatables fall back. Callback mutation, re-entry and errors are important regression cases. This is shared execution infrastructure."
+  },
+  {
+    "id": "ray_query_inputs",
+    "switch": "ray_query_inputs",
+    "label": "Ray query inputs",
+    "module": "sloptimizer_ray_queries",
+    "method": "install",
+    "dependencies": [
+      "demonized_geometry_ray"
+    ],
+    "argument": null,
+    "targets": [
+      "demonized_geometry_ray.geometry_ray.get"
+    ],
+    "mechanism": "Wrap the public getter; retain the original visualization path.",
+    "reason": "Remove copied input vectors while retaining an independently allocated endpoint and result table.",
+    "review": "Assumes native setters copy their inputs. Queries still run. Check old results are not mutated by later queries, contact offsets and visualized rays."
+  },
+  {
+    "id": "light_scans",
+    "switch": "light_scan_cache",
+    "label": "Light scans",
+    "module": "sloptimizer_light_flicker",
+    "method": "install",
+    "dependencies": [
+      "bind_light_furniture"
+    ],
+    "argument": "light_scan_interval_ms",
+    "targets": [
+      "bind_light_furniture.need_flicker"
+    ],
+    "mechanism": "Wrap need_flicker with a per-lamp cache and an optional shared negative spatial scan.",
+    "reason": "Reduce repeated nearby-object searches and classification work across lamps.",
+    "review": "Results can be stale for up to 100 ms by default. Emission bypasses the outer cache; not every switch transition does. Positive broad scans fall back to exact checks. Only the first 64 shared negative results are shadow-checked; a detected mismatch disables that shortcut, not the outer cache."
+  },
+  {
+    "id": "offline_peer_panel",
+    "switch": "offline_peer_panel",
+    "label": "Offline peer panel",
+    "module": "sloptimizer_party_session",
+    "method": "install",
+    "dependencies": [
+      "xrr_peer_hud"
+    ],
+    "argument": null,
+    "targets": [
+      "xrr_peer_hud.UIPeerList.Update"
+    ],
+    "mechanism": "Add an actor_on_update poller; do not replace the Update method in this component.",
+    "reason": "Remove the offline party HUD from render updates, restoring it when a session appears.",
+    "review": "Session changes are polled every 500 ms. Calls AddDialogToRender/RemoveDialogToRender and forced Update; this is not just a numeric cache. Test connect/disconnect and HUD recreation. No multiplayer engine: skip."
+  },
+  {
+    "id": "peer_field_cache",
+    "switch": "peer_field_cache",
+    "label": "Peer field cache",
+    "module": "sloptimizer_party_fields",
+    "method": "install",
+    "dependencies": [
+      "xrr_peer_hud"
+    ],
+    "argument": null,
+    "targets": [
+      "xrr_peer_hud.UIPeerList.Update"
+    ],
+    "mechanism": "Replace the party-panel Update method; recreate an existing HUD; register an option-change cache reset.",
+    "reason": "Skip unchanged widget writes, cache portraits and avoid hidden distance calculations.",
+    "review": "Keeps the original 500 ms interval. Portrait cache keys are faction/outfit. Other addons modifying widgets or portrait dependencies may invalidate assumptions. Real connected co-op needs more coverage."
+  },
+  {
+    "id": "artifact_metadata",
+    "switch": "artifact_kind_cache",
+    "label": "Artifact metadata",
+    "module": "sloptimizer_artifact_metadata",
+    "method": "install",
+    "dependencies": [
+      "item_artefact"
+    ],
+    "argument": null,
+    "targets": [
+      "zz_item_artefact.SYS_GetParam"
+    ],
+    "mechanism": "Wrap SYS_GetParam in the artifact function environment only; register load/option-change cache resets.",
+    "reason": "Cache static artifact kind metadata by section and nil/empty default separately.",
+    "review": "Other parameter queries fall through. Runtime metadata edits outside the reset callbacks can be stale; global SYS_GetParam is not replaced."
+  },
+  {
+    "id": "item_update",
+    "switch": "item_updates",
+    "label": "Item update",
+    "module": "sloptimizer_item_updates",
+    "method": "install",
+    "dependencies": [
+      "bind_item"
+    ],
+    "argument": null,
+    "targets": [
+      "bind_item.item_binder.update"
+    ],
+    "mechanism": "Replace the binder update with a reviewed shortcut; keep first-update behavior on the original.",
+    "reason": "Retain object identity and reduce unused bookkeeping. Share tracked state cells where supported.",
+    "review": "Native binder update still runs every call. Uses/condition remain live. If tracked state cannot be shared, tracked items use the original path. Check reloads, multiuse items, condition changes and object lifetime assumptions."
+  },
+  {
+    "id": "artifact_update",
+    "switch": "artifact_updates",
+    "label": "Artifact update",
+    "module": "sloptimizer_artifact_updates",
+    "method": "install",
+    "dependencies": [
+      "item_artefact"
+    ],
+    "argument": null,
+    "targets": [
+      "item_artefact.artefact_binder.update"
+    ],
+    "mechanism": "Replace the reviewed zz_item_artefact update body in its original environment.",
+    "reason": "Retain identity, reuse condition reads, skip unnecessary radiation casts and distance work for parented artifacts.",
+    "review": "The replacement retains randomization, save restoration, physics and radiation branches. Check transitions, changing condition, fixed bones and radiation. No_rad keeps the original permanent-exclusion assumption."
+  },
+  {
+    "id": "projection",
+    "switch": "marker_projection",
+    "label": "Projection",
+    "module": "sloptimizer_marker_projection",
+    "method": "install",
+    "dependencies": [
+      "utils_catspaw_hudmarks",
+      "ui_hud_dotmarks"
+    ],
+    "argument": null,
+    "targets": [
+      "utils_catspaw_hudmarks.world_to_ui",
+      "ui_hud_dotmarks.dot_eye"
+    ],
+    "mechanism": "Replace projection and eye-direction helpers with private input scratch vectors.",
+    "reason": "Avoid fresh input vectors for synchronous projection and direction calculations.",
+    "review": "Projection output is still engine-owned; camera values remain live. Assumes synchronous calls and no retained scratch reference. Test nested/custom consumers before extending this reuse."
+  },
+  {
+    "id": "radiation",
+    "switch": "radiation_display",
+    "label": "Radiation",
+    "module": "sloptimizer_radiation_display",
+    "method": "install",
+    "dependencies": [
+      "actor_status"
+    ],
+    "argument": null,
+    "targets": [
+      "actor_status.UIIndicators.Update"
+    ],
+    "mechanism": "Replace the radiation addon wrapper while continuing to call its saved base HUD Update.",
+    "reason": "Skip identical fast-refresh text conversions/writes.",
+    "review": "Normal refresh and radiation calculations remain. Private pass/slot state is initialized from the reviewed wrapper. Check gasmask slot changes, geiger requirements and competing text writers."
+  },
+  {
+    "id": "task_checks",
+    "switch": "task_checks",
+    "label": "Task checks",
+    "module": "sloptimizer_task_checks",
+    "method": "install",
+    "dependencies": [
+      "task_manager"
+    ],
+    "argument": null,
+    "targets": [
+      "task_manager.CRandomTask.task_complete",
+      "task_manager.CRandomTask.task_fail"
+    ],
+    "mechanism": "Replace both reviewed task status methods with versions retaining a device wrapper.",
+    "reason": "Avoid repeated device wrapper requests.",
+    "review": "Actor, precache_frame, forced status and last status are read live. Task decisions are intended to match the original. Check forced complete/fail and missing tasks."
+  },
+  {
+    "id": "vision_world_light",
+    "switch": "vision_light_frame",
+    "label": "Vision world light",
+    "module": "sloptimizer_world_lighting",
+    "method": "install",
+    "dependencies": [
+      "visual_memory_manager"
+    ],
+    "argument": null,
+    "targets": [
+      "visual_memory_manager.lights_lum"
+    ],
+    "mechanism": "Wrap the shared world-light helper with an engine-frame cache.",
+    "reason": "Avoid recalculating the same shared lighting value for each visibility query.",
+    "review": "A second lighting change within the same engine frame is not observed until the next frame. NPC-specific get_visible_value still executes. When editing this cache, check detection during lighting transitions."
+  },
+  {
+    "id": "visibility_read_reduction",
+    "switch": "visibility_reads",
+    "label": "Visibility read reduction",
+    "module": "sloptimizer_visibility",
+    "method": "install",
+    "dependencies": [
+      "visual_memory_manager",
+      "stealth_mcm",
+      "camp_lum",
+      "level_weathers"
+    ],
+    "argument": null,
+    "targets": [
+      "visual_memory_manager.get_visible_value",
+      "visual_memory_manager.get_visible_value::orig"
+    ],
+    "mechanism": "Replace the reviewed visibility body, or replace only the orig upvalue inside the reviewed xrRazom wrapper.",
+    "reason": "Skip flashlight lookups whose results cannot be used by the current branch.",
+    "review": "Visibility equations and memory updates remain in the replacement body. The outer multiplayer wrapper is preserved. 120 simulated comparisons matched, but this is not exhaustive stealth validation; test day/night, flashlights, crouching and alert transitions."
+  },
+  {
+    "id": "device_read_reduction",
+    "switch": "device_updates",
+    "label": "Device read reduction",
+    "module": "sloptimizer_device_updates",
+    "method": "install",
+    "dependencies": [
+      "item_device"
+    ],
+    "argument": null,
+    "targets": [
+      "item_device.device_binder.update"
+    ],
+    "mechanism": "Replace the reviewed device update body with shared original upvalue cells.",
+    "reason": "Retain device identity and section while reading power/condition and parent live.",
+    "review": "Power, NVG, emission and PDA branches remain. 60 simulated comparisons matched. Object identity lifetime and compatibility with other binder overrides still require review."
+  },
+  {
+    "id": "lamp_save_buffers",
+    "switch": "lamp_save_buffers",
+    "label": "Lamp save buffers",
+    "module": "sloptimizer_lamp_save_buffers",
+    "method": "install",
+    "dependencies": [
+      "bind_light_furniture",
+      "hf_obj_manager"
+    ],
+    "argument": null,
+    "targets": [
+      "bind_light_furniture.placeable_light_wrapper.save_data"
+    ],
+    "mechanism": "Wrap save_data; reuse one input table per lamp; call original if the manager function changes.",
+    "reason": "Avoid one temporary condition table per lamp save.",
+    "review": "Every condition write still happens. The reviewed manager copies fields synchronously. A manager that retains the table would invalidate reuse; the signature guard and runtime function check are important."
+  }
+]

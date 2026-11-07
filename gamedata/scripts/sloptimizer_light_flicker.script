@@ -1,6 +1,6 @@
--- Light scan caching and multiplayer party-panel visibility.
+-- Combines a per-lamp flicker cache with optional shared nearby-object scans.
+-- Cache lifetime is bounded by the configured interval. Emissions bypass the outer cache.
 
-local peer_installed = false
 local light_installed = false
 -- Reuse the synchronous scan callback and immutable object classification.
 -- Weak keys do not retain nearby objects. Alive/position/emission stay live.
@@ -68,14 +68,14 @@ local function scan_adapter(fn, interval)
     end
     local fallback = make_psi_scan(fn, kinds, get_switch)
     if
-        gamma_opt_config
-        and gamma_opt_config.shared_light_scan
+        sloptimizer_config
+        and sloptimizer_config.shared_light_scan
         and level
         and type(level.iterate_nearest) == 'function'
     then
         local d = device()
         local nearest = type(level.nearest_object) == 'function' and level.nearest_object or nil
-        return gamma_opt_light_shared.make_scan(
+        return sloptimizer_shared_light_scan.make_scan(
             fallback,
             kinds,
             get_switch,
@@ -85,7 +85,7 @@ local function scan_adapter(fn, interval)
             interval,
             {
                 nearest = nearest,
-                anypsi = gamma_opt_light_shared.make_presence_query(kinds, level.iterate_nearest),
+                anypsi = sloptimizer_shared_light_scan.make_presence_query(kinds, level.iterate_nearest),
                 vector = vector,
                 emission = level_environment.get_light_flicker,
             }
@@ -94,15 +94,7 @@ local function scan_adapter(fn, interval)
     end
     return fallback, false
 end
-local function make_clock()
-    local d = type(device) == 'function' and device() or nil
-    if d and type(d.time_global) == 'function' then
-        return function()
-            return d:time_global()
-        end
-    end
-    return time_global
-end
+local make_clock = sloptimizer_device_clock.make_clock
 function make_light_cache(original, interval)
     local cache = setmetatable({}, { __mode = 'k' })
     local clock = make_clock()
@@ -127,7 +119,8 @@ function make_light_cache(original, interval)
         return value
     end
 end
-function start_lights(interval)
+-- Installation: validate the upstream implementation before changing it.
+function install(interval)
     if light_installed then
         return true, 'already active'
     end
@@ -154,63 +147,4 @@ function start_lights(interval)
                 shared and (shared .. ' armed with shadow validation')
                 or 'shared scan disabled; prior scan retained'
             )
-end
-
-function make_peer_poller(mod)
-    local hidden, last, last_hud
-    local clock = make_clock()
-    return function()
-        local now = clock()
-        if last and now >= last and now - last < 500 then
-            return
-        end
-        last = now
-        local current = mod.HUD
-        if hidden and current ~= hidden then
-            hidden = nil
-        end
-        if not current then
-            last_hud = nil
-            return
-        end
-        local in_session = XrrIsHosted() or XrrIsConnected()
-        if in_session then
-            if hidden == current then
-                get_hud():AddDialogToRender(current)
-                hidden = nil
-                current:Update(true)
-            end
-        elseif hidden ~= current then
-            -- Original forced update hides slots and restores companion placement.
-            current:Update(true)
-            get_hud():RemoveDialogToRender(current)
-            hidden = current
-        end
-        last_hud = current
-    end
-end
-function start_peers()
-    if
-        type(rawget(_G, 'XrrIsHosted')) ~= 'function'
-        or type(rawget(_G, 'XrrIsConnected')) ~= 'function'
-        or type(rawget(_G, 'XrrPlayers')) ~= 'function'
-    then
-        return false, 'xrRazom engine not present; multiplayer-only feature skipped'
-    end
-
-    if peer_installed then
-        return true, 'already active'
-    end
-    local mod = xrr_peer_hud
-    if not mod or not mod.UIPeerList then
-        return false, 'peer HUD not present'
-    end
-    local fn = mod.UIPeerList.Update
-    local d = type(fn) == 'function' and debug.getinfo(fn, 'S')
-    if not d or not d.source:match('xrr_peer_hud%.script$') or d.linedefined ~= 174 then
-        return false, 'peer HUD implementation differs from reviewed build'
-    end
-    RegisterScriptCallback('actor_on_update', make_peer_poller(mod))
-    peer_installed = true
-    return true, 'offline peer panel removed from render updates; session changes polled every 500 ms'
 end

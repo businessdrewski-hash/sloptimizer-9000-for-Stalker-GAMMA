@@ -1,0 +1,269 @@
+-- Startup provenance and explicitly requested inclusive function timing.
+-- No per-frame audit, disk writes, timers or timing wrappers are enabled by default.
+-- See docs/DIAGNOSTICS.md for scope, overhead and interpretation limits.
+local version = 'unknown'
+local components, measured = {}, {}
+
+local function clean(value)
+    return tostring(value):gsub('[\r\n\t]', ' ')
+end
+
+-- Resolve only already loaded modules. Never load an optional mod for diagnostics.
+-- A ::suffix denotes a private upvalue, not a public member of the module.
+function locate(path)
+    local base, upvalue = path:match('^(.-)::(.+)$')
+    base = base or path
+    local parts = {}
+    for part in base:gmatch('[^%.]+') do
+        parts[#parts + 1] = part
+    end
+    local parent = _G
+    for i = 1, #parts - 1 do
+        if type(parent) == 'table' then
+            parent = rawget(parent, parts[i])
+        elseif type(parent) == 'userdata' then
+            parent = parent[parts[i]]
+        else
+            return nil
+        end
+    end
+    if type(parent) ~= 'table' and type(parent) ~= 'userdata' then
+        return nil
+    end
+    local key = parts[#parts]
+    local value
+    if type(parent) == 'table' then
+        value = rawget(parent, key)
+    else
+        value = parent[key]
+    end
+    if upvalue then
+        if type(value) ~= 'function' then
+            return nil
+        end
+        for i = 1, 100 do
+            local name, held = debug.getupvalue(value, i)
+            if not name then
+                break
+            end
+            if name == upvalue then
+                return held,
+                    function(replacement)
+                        debug.setupvalue(value, i, replacement)
+                    end
+            end
+        end
+        return nil
+    end
+    return value, function(replacement)
+        parent[key] = replacement
+    end
+end
+
+local function observe(path)
+    local ok, value = pcall(locate, path)
+    if ok then
+        return value
+    end
+end
+
+local function describe(value)
+    if type(value) ~= 'function' then
+        return type(value)
+    end
+    local info = debug.getinfo(value, 'S')
+    if not info then
+        return 'function (source unavailable)'
+    end
+    return clean(info.source) .. ':' .. tostring(info.linedefined) .. '-' .. tostring(info.lastlinedefined)
+end
+
+function reset(build)
+    version = build
+    components = {}
+    -- A reset is for bootstrap only; never discard live timing wrappers.
+end
+
+function before(spec)
+    local values = {}
+    for i, path in ipairs(spec.targets) do
+        values[i] = { value = observe(path) }
+    end
+    return values
+end
+
+function record(spec, state, detail, prior)
+    local row = { id = spec.id, switch = spec.switch, state = state, detail = detail, targets = {} }
+    for i, path in ipairs(spec.targets) do
+        local original = prior and prior[i] and prior[i].value
+        row.targets[i] = { path = path, original = original, installed = observe(path) }
+    end
+    components[#components + 1] = row
+end
+
+-- The factory is public for tests. A timer accumulates time across start/stop
+-- pairs; each invocation uses the difference. Recursive calls need separate timers.
+function timed(original, timer_factory, stats)
+    local timers, depth = {}, 0
+    local function finish(timer, previous, ok, ...)
+        timer:stop()
+        local elapsed = timer:time() - previous
+        depth = depth - 1
+        stats.calls = stats.calls + 1
+        stats.total_us = stats.total_us + elapsed
+        stats.max_us = math.max(stats.max_us, elapsed)
+        if not ok then
+            stats.errors = stats.errors + 1
+            error((...), 0) -- Do not swallow gameplay errors; retain the error object.
+        end
+        return ... -- Preserve nils, multiple values and zero-return functions.
+    end
+    return function(...)
+        depth = depth + 1
+        local timer = timers[depth]
+        if not timer then
+            timer = timer_factory()
+            timers[depth] = timer
+        end
+        local previous = timer:time()
+        timer:start()
+        return finish(timer, previous, pcall(original, ...))
+    end
+end
+
+function start_timing(path)
+    if measured[path] then
+        return false, 'already timing this target'
+    end
+    local expected
+    for _, row in ipairs(components) do
+        if row.state == 'ACTIVE' then
+            for _, target in ipairs(row.targets) do
+                if target.path == path and target.installed ~= target.original then
+                    expected = target.installed
+                end
+            end
+        end
+    end
+    local original, setter = locate(path)
+    if type(original) ~= 'function' or original ~= expected or not setter then
+        return false, 'target was not changed by an active component, or has changed since installation'
+    end
+    -- Luabind exports constructors as callable classes, not necessarily functions.
+    -- Validate an actual instance before changing any gameplay function.
+    local constructor = profile_timer
+    local function new_timer()
+        local timer = constructor()
+        timer:start()
+        timer:stop()
+        assert(type(timer:time()) == 'number', 'timer did not return numeric time')
+        return timer
+    end
+    local valid, first_timer = pcall(new_timer)
+    if not valid then
+        return false, 'engine profile_timer unavailable: ' .. tostring(first_timer)
+    end
+    local function timer_factory()
+        if first_timer then
+            local timer = first_timer
+            first_timer = nil
+            return timer
+        end
+        return new_timer()
+    end
+    local stats = { calls = 0, total_us = 0, max_us = 0, errors = 0 }
+    local wrapper = timed(original, timer_factory, stats)
+    setter(wrapper)
+    measured[path] = { original = original, wrapper = wrapper, setter = setter, stats = stats }
+    return true, 'inclusive engine-timer measurement enabled; not isolated GC time'
+end
+
+function stop_timing(path)
+    local measurement = measured[path]
+    if not measurement then
+        return false, 'not timing this target'
+    end
+    local current, setter = locate(path)
+    if current ~= measurement.wrapper or not setter then
+        return false, 'another writer changed the target; refusing to overwrite it'
+    end
+    setter(measurement.original)
+    measured[path] = nil
+    return true, 'timing wrapper removed; write a report BEFORE stopping to retain its totals'
+end
+
+function report_lines()
+    local lines = {
+        'Sloptimizer 9000 ' .. version,
+        'Startup provenance and current function identity. Not a diagnosis of causality.',
+        'A changed target can be wrapped or replaced by another mod; UNCHANGED does not prove identical behavior.',
+        'Initializer errors are isolated, but already applied writes are not automatically rolled back.',
+    }
+    for _, row in ipairs(components) do
+        lines[#lines + 1] = '\n[' .. row.id .. '] ' .. row.state .. ' | switch=' .. row.switch
+        lines[#lines + 1] = 'detail=' .. clean(row.detail)
+        for _, target in ipairs(row.targets) do
+            local current = observe(target.path)
+            local measurement = measured[target.path]
+            local ours = current == target.installed
+                or (
+                    measurement
+                    and current == measurement.wrapper
+                    and measurement.original == target.installed
+                )
+            lines[#lines + 1] = 'target=' .. target.path
+            lines[#lines + 1] = '  before=' .. describe(target.original)
+            lines[#lines + 1] = '  after=' .. describe(target.installed)
+            lines[#lines + 1] = '  current=' .. describe(current)
+            lines[#lines + 1] = '  changed_at_install='
+                .. tostring(target.original ~= target.installed)
+                .. '; identity='
+                .. (ours and 'SAME_AS_AFTER_INSTALL' or 'CHANGED_SINCE_COMPONENT_INIT')
+        end
+    end
+    for _, name in ipairs({ 'sloptimizer_marker_updates', 'sloptimizer_shared_light_scan' }) do
+        local module = rawget(_G, name)
+        if module and type(module.counters) == 'function' then
+            lines[#lines + 1] = '\n[counters:' .. name .. ']'
+            local keys, counters = {}, module.counters()
+            for key in pairs(counters) do
+                keys[#keys + 1] = key
+            end
+            table.sort(keys)
+            for _, key in ipairs(keys) do
+                lines[#lines + 1] = key .. '=' .. clean(counters[key])
+            end
+        end
+    end
+    local paths = {}
+    for path in pairs(measured) do
+        paths[#paths + 1] = path
+    end
+    table.sort(paths)
+    for _, path in ipairs(paths) do
+        local s = measured[path].stats
+        lines[#lines + 1] = '\n[timing:'
+            .. path
+            .. '] calls='
+            .. s.calls
+            .. '; inclusive_total_us='
+            .. s.total_us
+            .. '; max_us='
+            .. s.max_us
+            .. '; errors='
+            .. s.errors
+    end
+    return lines
+end
+
+function write_report()
+    local root = getFS():update_path('$app_data_root$', 'logs\\')
+    local path = root .. 'sloptimizer-patch-report.txt'
+    local file, err = io.open(path, 'w')
+    if not file then
+        return false, err
+    end
+    file:write(table.concat(report_lines(), '\n'), '\n')
+    file:close()
+    return true, path
+end

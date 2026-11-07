@@ -1,3 +1,7 @@
+-- Reuses one condition-input table per lamp save.
+-- The manager must copy fields synchronously. Replacing the manager restores the original save
+-- path.
+
 -- Reuse live clock access and synchronous lamp-save inputs.
 local installed = false
 
@@ -16,7 +20,8 @@ function make_save(update_data)
     end
 end
 
-function start_lamp_buffers()
+-- Installation: validate the upstream implementation before changing it.
+function install()
     if installed then
         return true, 'already active'
     end

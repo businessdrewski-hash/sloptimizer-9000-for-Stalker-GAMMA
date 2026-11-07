@@ -1,3 +1,6 @@
+-- Keeps one device handle for the global time helper.
+-- Every call reads current engine time; the time value itself is never cached.
+
 -- Shared live clock accessor with a retained device wrapper.
 
 local installed = false
@@ -7,32 +10,8 @@ function make_clock(d)
         return read(d)
     end
 end
-function refresh_aliases(module, original, replacement)
-    if type(module) ~= 'table' then
-        return 0
-    end
-    local changed = 0
-    for _, fn in pairs(module) do
-        if type(fn) == 'function' then
-            local info = debug.getinfo(fn, 'S')
-            if info and info.source:match('drx_da_main%.script$') then
-                for i = 1, 100 do
-                    local name, value = debug.getupvalue(fn, i)
-                    if not name then
-                        break
-                    end
-                    if name == 'time_global' and value == original then
-                        debug.setupvalue(fn, i, replacement)
-                        changed = changed + 1
-                    end
-                end
-            end
-        end
-    end
-    return changed
-end
-
-function start()
+-- Installation: validate the upstream implementation before changing it.
+function install()
     if installed then
         return true, 'already active'
     end
@@ -55,7 +34,6 @@ function start()
         return false, 'global clock replacement failed'
     end
     -- Do not rewrite anomaly-module upvalues: Anti-Lag may own that implementation.
-    local aliases = 0
     installed = true
-    return true, 'retained live clock; refreshed anomaly clock aliases: ' .. tostring(aliases)
+    return true, 'retained device handle; clock value stays live'
 end

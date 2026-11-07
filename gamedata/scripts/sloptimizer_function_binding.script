@@ -1,0 +1,40 @@
+-- Binds a replacement body to its original environment and mutable upvalue cells.
+-- Called only during installation. Upvalue names must match the original; do not rename them
+-- casually.
+
+function bind_body(original, body, source_name)
+    if type(debug.upvaluejoin) ~= 'function' then
+        return nil, 'shared upvalue API unavailable'
+    end
+    local names, slots = {}, {}
+    for i = 1, 100 do
+        local n = debug.getupvalue(original, i)
+        if not n then
+            break
+        end
+        if not n:match('^[%a_][%w_]*$') then
+            return nil, 'unknown upvalue name'
+        end
+        names[#names + 1] = n
+        slots[n] = i
+    end
+    local prefix = #names > 0 and ('local ' .. table.concat(names, ',') .. '\n') or ''
+    local chunk, err =
+        loadstring(prefix .. 'return ' .. body, source_name or '@sloptimizer_function_binding.script')
+    if not chunk then
+        return nil, err
+    end
+    local fn = chunk()
+    setfenv(fn, getfenv(original))
+    for i = 1, 100 do
+        local n = debug.getupvalue(fn, i)
+        if not n then
+            break
+        end
+        if not slots[n] then
+            return nil, 'unexpected replacement upvalue ' .. n
+        end
+        debug.upvaluejoin(fn, i, original, slots[n])
+    end
+    return fn
+end

@@ -1,3 +1,6 @@
+-- Limits limb HUD refreshes without moving the surrounding health calculations.
+-- The last refresh time belongs to the wrapper; clock rollback permits an immediate update.
+
 -- Body health display refresh limiter; health calculations are unchanged.
 
 local installed = false
@@ -12,7 +15,8 @@ function make_display(original, interval)
         return original(...)
     end
 end
-function start(interval)
+-- Installation: validate the upstream implementation before changing it.
+function install(interval)
     if installed then
         return true, 'already active'
     end

@@ -1,3 +1,6 @@
+-- Projects marker positions and calculates eye direction with reusable input vectors.
+-- Calls are synchronous; inputs do not escape. Camera values and output vectors stay live.
+
 -- Marker projection and eye-direction scratch buffers.
 
 local installed = false
@@ -24,7 +27,8 @@ function make_eye(env)
         return scratch:dotproduct(d.cam_dir)
     end
 end
-function start()
+-- Installation: validate the upstream implementation before changing it.
+function install()
     if installed then
         return true, 'already active'
     end

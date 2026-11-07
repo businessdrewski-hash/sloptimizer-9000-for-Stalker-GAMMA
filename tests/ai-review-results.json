@@ -1,0 +1,41 @@
+{
+  "visibility": [
+    {
+      "source": "G.A.M.M.A. Stealth Crash Fix",
+      "sha256": "36f611e3d9018c76e205b542bef2ed2d1130198ce60e9ab51c65cd5232db88f5",
+      "comparisons": 30000,
+      "exact_mismatches": 45,
+      "material_mismatches": 0,
+      "first_difference": {
+        "case": 258,
+        "step": 0,
+        "wrapped": false,
+        "original": 6888920.898930192,
+        "replacement": 6888920.898930194
+      }
+    },
+    {
+      "source": "290- Atmospherics Shaders Weathers and Reshade Latest - Hippobot",
+      "sha256": "a9e8414c9fb9b17ab79dd16222a31d14295b96d32fa592be5bbde8bdbc5d4e0c",
+      "comparisons": 30000,
+      "exact_mismatches": 7764,
+      "material_mismatches": 7764,
+      "first_difference": {
+        "case": 0,
+        "step": 0,
+        "wrapped": false,
+        "original": 63822665683042.375,
+        "replacement": 49663332567930.33
+      }
+    }
+  ],
+  "wrapper_sha256": "666b41be13e77df60cf73475c0f16f571b596f8e959306a1dcebe6391031dc7d",
+  "world_cache_same_frame_counterexample": {
+    "cached_light": 0.1,
+    "live_light": 0.9,
+    "cached_detection": 282.81970221448233,
+    "live_detection": 323.73109922258936
+  },
+  "lamp_cache": "A change from no psi influence to psi influence at 50 ms remains cached false until 100 ms; emission bypass works. This changes lamp-animation timing; downstream AI effect not measured.",
+  "scope": "Deterministic Lua differential tests with mocked engine inputs. Not live combat validation."
+}

@@ -1,0 +1,102 @@
+-- Bootstrap only: component algorithms live in their own modules.
+-- Registry: sloptimizer_registry.script. Review guide: docs/PATCHES.md.
+local VERSION = '2.10.1-readable'
+local started, first = false, nil
+local results = {}
+
+local function available(name)
+    if type(rawget(_G, name)) == 'table' then
+        return true
+    end
+    local found = getFS():exist('$game_scripts$', name .. '.script')
+    return found ~= nil and found ~= false
+end
+
+local function initialize(spec, config)
+    for _, dependency in ipairs(spec.dependencies) do
+        if not available(dependency) then
+            return false, 'optional script missing: ' .. dependency
+        end
+    end
+    local component = _G[spec.module]
+    if not component or type(component[spec.method]) ~= 'function' then
+        return false, 'component initializer unavailable'
+    end
+    return component[spec.method](spec.argument and config[spec.argument] or nil)
+end
+
+local function record(spec, state, detail, prior)
+    results[#results + 1] = spec.label .. ': ' .. state .. ' - ' .. tostring(detail)
+    local ok, err = pcall(sloptimizer_diagnostics.record, spec, state, detail, prior)
+    if not ok then
+        printf('[Sloptimizer diagnostics] %s', tostring(err))
+    end
+end
+
+function start()
+    if started then
+        return results
+    end
+    started = true
+    local config = sloptimizer_config
+    sloptimizer_diagnostics.reset(VERSION)
+    for _, spec in ipairs(sloptimizer_registry.entries()) do
+        local observed, prior = pcall(sloptimizer_diagnostics.before, spec)
+        if not observed then
+            prior = nil
+        end
+        if
+            not config[spec.switch] or (config.disabled_components and config.disabled_components[spec.id])
+        then
+            record(spec, 'DISABLED', 'disabled in sloptimizer_config', prior)
+        else
+            local success, active, detail = pcall(initialize, spec, config)
+            if not success then
+                record(spec, 'ERROR', active, prior)
+            else
+                record(spec, active and 'ACTIVE' or 'SKIPPED', detail, prior)
+            end
+        end
+    end
+    local root = getFS():update_path('$app_data_root$', 'logs\\')
+    local file = io.open(root .. 'gamma-optimization-status.txt', 'w')
+    if file then
+        file:write('Sloptimizer 9000 v' .. VERSION .. '\n', table.concat(results, '\n'), '\n')
+        file:close()
+    end
+    for _, line in ipairs(results) do
+        printf('[Sloptimizer 9000] %s', line)
+    end
+    for _, target in ipairs(config.diagnostic_timing_targets or {}) do
+        local ok, enabled, detail = pcall(sloptimizer_diagnostics.start_timing, target)
+        printf(
+            '[Sloptimizer timing] %s: %s - %s',
+            target,
+            tostring(ok and enabled),
+            tostring(ok and detail or enabled)
+        )
+    end
+    local ok, err = pcall(sloptimizer_diagnostics.write_report)
+    if not ok then
+        printf('[Sloptimizer diagnostics] %s', tostring(err))
+    end
+    return results
+end
+
+function actor_on_update()
+    if started then
+        return
+    end
+    first = first or time_global()
+    if time_global() - first < 5000 then
+        return
+    end
+    if not db or not db.actor then
+        return
+    end
+    start()
+end
+
+function on_game_start()
+    RegisterScriptCallback('actor_on_update', actor_on_update)
+end

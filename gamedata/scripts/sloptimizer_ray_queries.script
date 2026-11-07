@@ -1,9 +1,16 @@
+-- Avoids copied ray inputs while preserving independent result/endpoint objects.
+-- Native setters must copy inputs. Visualized queries use the original getter.
+
 -- Ray setters copy their inputs; only the returned endpoint needs a new vector.
 local installed = false
 function make_get(original)
     return function(self, position, direction)
-        if position == nil or direction == nil then return nil end
-        if self.visualize then return original(self, position, direction) end
+        if position == nil or direction == nil then
+            return nil
+        end
+        if self.visualize then
+            return original(self, position, direction)
+        end
         local ray = self.ray
         ray:set_position(position)
         ray:set_direction(direction)
@@ -21,13 +28,20 @@ function make_get(original)
         return result
     end
 end
-function start()
-    if installed then return true, 'already active' end
+-- Installation: validate the upstream implementation before changing it.
+function install()
+    if installed then
+        return true, 'already active'
+    end
     local class = demonized_geometry_ray and demonized_geometry_ray.geometry_ray
     local original = class and class.get
     local info = type(original) == 'function' and debug.getinfo(original, 'S')
-    if not info or not info.source:match('demonized_geometry_ray%.script$')
-        or info.linedefined ~= 127 or info.lastlinedefined ~= 177 then
+    if
+        not info
+        or not info.source:match('demonized_geometry_ray%.script$')
+        or info.linedefined ~= 127
+        or info.lastlinedefined ~= 177
+    then
         return false, 'geometry getter differs'
     end
     class.get = make_get(original)

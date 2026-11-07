@@ -1,3 +1,6 @@
+-- Reuses sequential geometry rays during one synchronous ledge check.
+-- A new scope is used for re-entry. The ray never survives the check; unknown options fall back.
+
 -- Sequential ray reuse is limited to one synchronous ledge check.
 local installed = false
 local function find_upvalue(fn, wanted)
@@ -14,7 +17,9 @@ end
 
 -- Only the verified ledge consumer uses this smaller result contract.
 local function ledge_get(self, position, direction)
-    if position == nil or direction == nil then return nil end
+    if position == nil or direction == nil then
+        return nil
+    end
     local ray = self.ray
     ray:set_position(position)
     ray:set_direction(direction)
@@ -53,7 +58,9 @@ function make_scope(constructor, minimal_results)
         local r = active.ray
         if not r or active.ignore ~= args.ignore_object then
             r = constructor(args)
-            if minimal_results then r.get = ledge_get end
+            if minimal_results then
+                r.get = ledge_get
+            end
             active.ray = r
             active.ignore = args.ignore_object
         else
@@ -81,7 +88,8 @@ function make_scope(constructor, minimal_results)
     return create, wrap
 end
 
-function start()
+-- Installation: validate the upstream implementation before changing it.
+function install()
     if installed then
         return true, 'already active'
     end
@@ -134,6 +142,5 @@ function start()
     callbacks[replacement] = priority
     mod.checkLedgeGrabbing = replacement
     installed = true
-    return true,
-        'lean ledge results; no material snapshot for misses; live queries retained'
+    return true, 'lean ledge results; no material snapshot for misses; live queries retained'
 end

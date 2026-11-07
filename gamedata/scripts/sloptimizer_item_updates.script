@@ -1,3 +1,7 @@
+-- Retains item identity while keeping condition and uses live.
+-- First updates use the original. Tracked state is shared; unsupported state uses the original
+-- path.
+
 -- Ordinary items: bypass unused bookkeeping for untracked items.
 
 local installed = false
@@ -64,7 +68,8 @@ function make_update(original, env)
         return env.object_binder.update(self, delta)
     end
 end
-function start()
+-- Installation: validate the upstream implementation before changing it.
+function install()
     if installed then
         return true, 'already active'
     end

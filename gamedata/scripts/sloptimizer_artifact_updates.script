@@ -1,3 +1,6 @@
+-- Retains artifact identity and removes redundant reads inside the existing update flow.
+-- Condition, save restoration, physics and radiation branches remain in this body.
+
 -- Artifact updates: reuse lookups while retaining gameplay calculations.
 
 local installed = false
@@ -36,20 +39,13 @@ function make_artifact(env, in_actor_ruck, rad_tg_step, rad_factor)
         -- if condition of stored artefact was changed by online transition / loading
         if cond_t[id] and condition >= 1 then
             -- set stored condition back
-            pr(
-                'condition changed from online/loading, prev: %s || curr: %s',
-                r(condition),
-                r(cond_t[id])
-            )
+            pr('condition changed from online/loading, prev: %s || curr: %s', r(condition), r(cond_t[id]))
             object:set_condition(cond_t[id])
             condition = object:condition()
         end
 
         -- if condition was changed by other addons
-        if
-            (cond_t[id] and condition ~= cond_t[id])
-            or (not cond_t[id] and condition < 1)
-        then
+        if (cond_t[id] and condition ~= cond_t[id]) or (not cond_t[id] and condition < 1) then
             pr(
                 'condition changed by other addons, prev: %s || curr: %s',
                 cond_t[id] and r(cond_t[id]) or 'nil',
@@ -136,7 +132,8 @@ function make_artifact(env, in_actor_ruck, rad_tg_step, rad_factor)
         end
     end
 end
-function start()
+-- Installation: validate the upstream implementation before changing it.
+function install()
     if installed then
         return true, 'already active'
     end
@@ -166,5 +163,6 @@ function start()
     setfenv(fn, env)
     class.update = fn
     installed = true
-    return true, 'artifact identity retained; one live condition read per update plus readback after writes; physics and radiation unchanged'
+    return true,
+        'artifact identity retained; one live condition read per update plus readback after writes; physics and radiation unchanged'
 end

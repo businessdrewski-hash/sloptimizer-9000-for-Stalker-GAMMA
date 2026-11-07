@@ -1,3 +1,6 @@
+-- Uses one device handle in task completion/failure checks.
+-- Actor, precache frame and task state are read live; no task result is cached.
+
 -- Task status checks with a retained device wrapper.
 
 local installed = false
@@ -53,7 +56,8 @@ function make_tasks(retained_device)
 
     return replacement
 end
-function start()
+-- Installation: validate the upstream implementation before changing it.
+function install()
     if installed then
         return true, 'already active'
     end

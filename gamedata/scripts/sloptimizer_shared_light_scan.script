@@ -1,3 +1,7 @@
+-- Shares negative spatial-query results across nearby lamps.
+-- Positive broad queries use the exact scan. Expiry, clock rollback and a 64-cell cap bound
+-- storage.
+
 -- Shared negative light queries with exact positive checks and fallback.
 
 local statistics = {

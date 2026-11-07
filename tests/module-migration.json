@@ -1,0 +1,31 @@
+{
+  "modules": {
+    "gamma_opt_pack": "sloptimizer_bootstrap",
+    "gamma_opt_config": "sloptimizer_config",
+    "gamma_opt_registry": "sloptimizer_registry",
+    "gamma_opt_diagnostics": "sloptimizer_diagnostics",
+    "gamma_opt_markers": "sloptimizer_marker_updates",
+    "gamma_opt_projection_v2": "sloptimizer_marker_projection",
+    "gamma_opt_callbacks": "sloptimizer_callback_dispatch",
+    "gamma_opt_clock": "sloptimizer_live_clock",
+    "gamma_opt_injury": "sloptimizer_body_health_display",
+    "gamma_opt_radiation_v2": "sloptimizer_radiation_display",
+    "gamma_opt_items": "sloptimizer_artifact_metadata",
+    "gamma_opt_item_v2": "sloptimizer_item_updates",
+    "gamma_opt_artifact_v2": "sloptimizer_artifact_updates",
+    "gamma_opt_tasks_v2": "sloptimizer_task_checks",
+    "gamma_opt_light_shared": "sloptimizer_shared_light_scan",
+    "gamma_opt_churn": "sloptimizer_lamp_save_buffers",
+    "gamma_opt_ledge": "sloptimizer_ledge_rays",
+    "gamma_opt_ray_query": "sloptimizer_ray_queries",
+    "gamma_opt_vision_light": "sloptimizer_world_lighting",
+    "gamma_opt_peer_fields": "sloptimizer_party_fields"
+  },
+  "switches": {
+    "v2_item_updates": "item_updates",
+    "v2_artifact_updates": "artifact_updates",
+    "v2_projection": "marker_projection",
+    "v2_radiation": "radiation_display",
+    "v2_task_checks": "task_checks"
+  }
+}
