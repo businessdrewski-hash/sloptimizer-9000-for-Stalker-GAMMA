@@ -76,7 +76,7 @@ function entries()
             module = 'sloptimizer_light_flicker',
             method = 'install',
             dependencies = { 'bind_light_furniture' },
-            argument = 'light_scan_interval_ms',
+            argument = nil,
             targets = { 'bind_light_furniture.need_flicker' },
         },
         {

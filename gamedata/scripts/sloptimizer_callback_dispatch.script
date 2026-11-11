@@ -4,6 +4,137 @@
 -- Callback dispatch: cached ordering and reusable traversal buffers.
 
 local installed = false
+
+local reviewed = {
+dispatch = [====[
+function(name,...)
+	if (intercepts[name]) then
+		for func_or_userdata, v in spairs(intercepts[name], sort_func_values_ascend) do 
+			if (type(func_or_userdata) == "function") then 
+				func_or_userdata(...)
+			elseif (func_or_userdata[name]) then
+				func_or_userdata[name](func_or_userdata,...)
+			end
+		end
+	else
+		printf("![axr_main make_callback] can't make callback to non existing intercept %s!",name)
+		callstack()
+	end
+end
+]====],
+spairs = [====[
+function(t, order)
+	if order and order ~= sort_func_keys_ascend then
+		return hspairs(t, order)
+	else
+		return mspairs_default(t)
+	end
+end
+]====],
+order = [====[
+function(t, a, b)
+	return t[a] < t[b]
+end
+]====],
+heap = [====[
+function(t, order)
+    -- collect the keys
+    local n = 0
+    local keys = {}
+    for k in pairs(t) do
+    	n = n + 1
+        keys[n] = k
+    end
+
+    -- Return if table is empty
+    if n == 0 then
+    	return nil_func
+    end
+
+    -- If there is only one item, very simple iterator that returns the first item
+    if n == 1 then
+        local done = false
+        return function()
+            if done then return nil end
+            done = true
+            local val = t[keys[1]]
+            -- Safety check in case the single item was deleted
+            if val ~= nil then 
+                return keys[1], val 
+            end
+        end
+    end
+
+    -- Use order if its provided
+    if order then
+    	order = safe_order(order)
+    end
+    local sift_down = order and sift_down_order or sift_down_default
+
+    -- Build the Heap: O(N)
+    for i = math_floor(n / 2), 1, -1 do
+        sift_down(keys, i, n, t, order)
+    end
+
+    -- return the iterator function
+    return function()
+    	while n > 0 do
+	        local best_key = keys[1]
+            local val = t[best_key]
+
+            keys[1] = keys[n]
+            keys[n] = nil
+            n = n - 1
+	        
+	        if n > 0 then
+	            sift_down(keys, 1, n, t, order)
+	        end
+	        
+	        if val ~= nil then
+                return best_key, val
+            end
+	    end
+	    return nil
+    end
+end
+]====],
+sift = [====[
+function(keys, idx, end_idx, t, order)
+    local hole_idx = idx
+    local sifting_key = keys[hole_idx]
+    local half_idx = math_floor(end_idx / 2)
+    
+    while hole_idx <= half_idx do
+        local child = hole_idx * 2
+        local right = child + 1
+        
+        if child < end_idx and order(t, keys[right], keys[child]) then
+            child = right
+        end
+        
+        if order(t, keys[child], sifting_key) then
+            keys[hole_idx] = keys[child]
+            hole_idx = child
+        else
+            break
+        end
+    end
+    keys[hole_idx] = sifting_key
+end
+]====],
+safe = [====[
+function(order)
+	return function(t, a, b)
+		local va = t[a]
+	    local vb = t[b]
+	    if va == nil then return false end -- 'a' is nil, so 'b' is "better"
+	    if vb == nil then return true end  -- 'b' is nil, so 'a' is "better"
+	    return order(t, a, b)
+	end
+end
+]====],
+}
+
 local function upvalue(fn, wanted)
     for i = 1, 100 do
         local name, value = debug.getupvalue(fn, i)
@@ -162,11 +293,35 @@ function install()
     then
         return false, 'dispatcher or sort implementation differs from reviewed build'
     end
+    local env = getfenv(original)
+    local ordered = env.spairs
+    local heap = type(ordered) == 'function' and getfenv(ordered).hspairs
+    local matches = sloptimizer_function_binding.matches_body
+    if not matches(original, reviewed.dispatch)
+        or not matches(ordered, reviewed.spairs)
+        or not matches(env.sort_func_values_ascend, reviewed.order)
+        or not matches(heap, reviewed.heap)
+        or not matches(upvalue(heap, 'sift_down_order'), reviewed.sift)
+        or not matches(upvalue(heap, 'safe_order'), reviewed.safe)
+        or upvalue(heap, 'math_floor') ~= math.floor then
+        return false, 'unrecognized callback/sort body; original retained'
+    end
     local registry = upvalue(original, 'intercepts')
     if type(registry) ~= 'table' then
         return false, 'callback registry unavailable'
     end
-    axr_main.make_callback = make_dispatch(original, registry)
+    local optimized = make_dispatch(original, registry)
+    local order = env.sort_func_values_ascend
+    local sort_env = getfenv(ordered)
+    axr_main.make_callback = function(name, ...)
+        -- A later mod may replace the public sorting functions. Respect its
+        -- semantics through the original dispatcher instead of bypassing them.
+        if env.spairs ~= ordered or env.sort_func_values_ascend ~= order
+            or sort_env.hspairs ~= heap then
+            return original(name, ...)
+        end
+        return optimized(name, ...)
+    end
     installed = true
     return true, 'initial-heap cache and reusable traversal buffers active'
 end

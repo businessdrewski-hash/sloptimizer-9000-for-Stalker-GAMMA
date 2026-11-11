@@ -38,6 +38,7 @@ function make_radiation(original, pass, slot_n)
 
                 if
                     self.slot[slot_n]
+                    and self.slot[slot_n].icon_f
                     and self.slot[slot_n].icon_f:IsShown()
                     and self.slot[slot_n].xcvb_time
                 then
@@ -50,7 +51,9 @@ function make_radiation(original, pass, slot_n)
             if faster_refresh_rate and pass then
                 if
                     self.slot[slot_n]
+                    and self.slot[slot_n].icon_f
                     and self.slot[slot_n].icon_f:IsShown()
+                    and self.slot[slot_n].xcvb_time
                     and self.slot[slot_n].xcvb_time:IsShown()
                 then
                     local show_time = math.ceil(db.actor.radiation * 10000 * 0.387)

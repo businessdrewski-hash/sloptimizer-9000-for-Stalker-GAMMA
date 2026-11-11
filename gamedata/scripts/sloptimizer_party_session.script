@@ -4,7 +4,7 @@
 local peer_installed = false
 local make_clock = sloptimizer_device_clock.make_clock
 function make_peer_poller(mod)
-    local hidden, last, last_hud
+    local hidden, last
     local clock = make_clock()
     return function()
         local now = clock()
@@ -17,23 +17,23 @@ function make_peer_poller(mod)
             hidden = nil
         end
         if not current then
-            last_hud = nil
             return
         end
+        local hud = get_hud()
+        if not hud then return end
         local in_session = XrrIsHosted() or XrrIsConnected()
         if in_session then
             if hidden == current then
-                get_hud():AddDialogToRender(current)
+                hud:AddDialogToRender(current)
                 hidden = nil
                 current:Update(true)
             end
         elseif hidden ~= current then
             -- Original forced update hides slots and restores companion placement.
             current:Update(true)
-            get_hud():RemoveDialogToRender(current)
+            hud:RemoveDialogToRender(current)
             hidden = current
         end
-        last_hud = current
     end
 end
 -- Installation: validate the upstream implementation before changing it.

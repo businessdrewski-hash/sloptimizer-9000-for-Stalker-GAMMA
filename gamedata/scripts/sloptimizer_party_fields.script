@@ -11,9 +11,17 @@ function set_field(slot, key, widget, method, value)
         cache = {}
         slot.gamma_opt_values = cache
     end
-    if cache[key] ~= value then
+    -- A rebuilt widget must receive its initial value even if the value did not
+    -- change. Weak values avoid retaining a discarded native UI wrapper.
+    local widgets = slot.gamma_opt_widgets
+    if not widgets then
+        widgets = setmetatable({}, { __mode = 'v' })
+        slot.gamma_opt_widgets = widgets
+    end
+    if widgets[key] ~= widget or cache[key] ~= value then
         widget[method](widget, value)
         cache[key] = value
+        widgets[key] = widget
     end
 end
 function update(self, force)

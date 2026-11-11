@@ -72,3 +72,13 @@ function same_implementation(a, b)
     return true
 end
 
+
+-- Validate before mutating any live target. Unsupported comparisons fail closed.
+function matches_body(original, body)
+    if type(original) ~= 'function' then return false end
+    local ok, matched = pcall(function()
+        local probe = bind_body(original, body)
+        return probe and same_implementation(original, probe) or false
+    end)
+    return ok and matched == true
+end

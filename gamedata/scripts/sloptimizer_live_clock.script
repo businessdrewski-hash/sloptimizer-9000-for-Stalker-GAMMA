@@ -5,7 +5,7 @@
 
 local installed = false
 function make_clock(d)
-    local read = assert(d.time_global)
+    local read = d.time_global
     return function()
         return read(d)
     end
@@ -26,13 +26,7 @@ function install()
         return false, 'time helper differs from reviewed device():time_global() wrapper'
     end
     local d = device()
-    if not d or type(d.time_global) ~= 'function' then
-        return false, 'engine clock unavailable'
-    end
     _G.time_global = make_clock(d)
-    if _G.time_global == original then
-        return false, 'global clock replacement failed'
-    end
     -- Do not rewrite anomaly-module upvalues: Anti-Lag may own that implementation.
     installed = true
     return true, 'retained device handle; clock value stays live'

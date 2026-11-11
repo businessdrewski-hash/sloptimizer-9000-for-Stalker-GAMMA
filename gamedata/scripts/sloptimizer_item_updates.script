@@ -1,10 +1,57 @@
--- Retains item identity while keeping condition and uses live.
+-- Reads current item identity while keeping condition and uses live.
 -- First updates use the original. Tracked state is shared; unsupported state uses the original
 -- path.
 
 -- Ordinary items: bypass unused bookkeeping for untracked items.
 
 local installed = false
+
+-- Exact reviewed binder body; line numbers alone do not establish compatibility.
+local reference_body = [====[
+function(self, delta)
+    object_binder.update(self, delta)
+	
+	local obj = self.object
+	local id = obj:id()
+	
+	if (not self.first_update) then
+		self.first_update = true
+		
+		-- Backwards save compatibility, remove me later
+		local mdata = alife_storage_manager.get_state()
+		if mdata.device_condition and mdata.device_condition[id] then
+			item_condition[id] = mdata.device_condition[id]
+			alife_storage_manager.get_state().device_condition[id] = nil
+			print_dbg("Shifted item condition [%s](%s) to new table", obj:name(), item_condition[id])
+		end
+		
+		if item_uses[id] then
+			obj:set_remaining_uses(item_uses[id])
+			print_dbg("Restored item uses [%s] (%s)", obj:name(), item_uses[id])
+		elseif item_condition[id] then
+			obj:set_condition(item_condition[id])
+			print_dbg("Restored item condition [%s] (%s)", obj:name(), item_condition[id])
+		end
+		
+		local sec = obj:section()
+		if IsItem("multiuse", sec) then
+			self.multiuse = true
+			print_dbg("Multiuse item [%s] detected", obj:name())
+		elseif ini_sys:r_bool_ex(sec,"use_condition") then
+			self.degradable = true
+			print_dbg("Degradable item [%s] detected", obj:name())
+		end
+		
+		return
+	end
+	
+	if self.multiuse then
+		item_uses[id] = obj:get_remaining_uses()
+	elseif self.degradable then
+		item_condition[id] = obj:condition()
+	end
+end
+]====]
 function make_tracked(original, env)
     local global_state = type(rawget(env, 'item_uses')) == 'table'
         and type(rawget(env, 'item_condition')) == 'table'
@@ -36,13 +83,10 @@ function make_tracked(original, env)
             item_uses = env.item_uses
             item_condition = env.item_condition
         end
-        local obj = self._gamma_opt_item_object
-        if not obj then
-            obj = self.object
-            self._gamma_opt_item_object = obj
-            self._gamma_opt_item_id = obj:id()
-        end
-        local id = self._gamma_opt_item_id
+        -- Read the binder's current object each update. A cached wrapper can
+        -- outlive a replacement made by another binder/mod.
+        local obj = self.object
+        local id = obj:id()
         if self.multiuse then
             item_uses[id] = obj:get_remaining_uses()
         elseif self.degradable then
@@ -79,6 +123,12 @@ function install()
     if not d or not d.source:match('bind_item%.script$') or d.linedefined ~= 152 then
         return false, 'item binder differs'
     end
+    local probe = sloptimizer_function_binding.bind_body(original, reference_body)
+    if not probe then return false, 'item binder reference could not be bound' end
+    local ok, matches = pcall(sloptimizer_function_binding.same_implementation, original, probe)
+    if not ok or not matches then
+        return false, 'unrecognized item binder body; original retained'
+    end
     local env = getfenv(original)
     if not env.object_binder or type(env.object_binder.update) ~= 'function' then
         return false, 'native binder unavailable'
@@ -88,6 +138,6 @@ function install()
     installed = true
     return true,
         tracked
-                and 'tracked item wrapper and ID retained; live condition/uses and save-state tables preserved'
+                and 'current binder object/ID read per update; live condition/uses and save-state tables preserved'
             or 'untracked shortcut active; tracked-state optimization unavailable'
 end

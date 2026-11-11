@@ -27,7 +27,7 @@ assert(type(sloptimizer_light_flicker.install)=='function')
 assert(type(sloptimizer_party_session.install)=='function')
 assert(sloptimizer_visibility.replacement_source():find('function',1,true))
 assert(sloptimizer_device_updates.replacement_source():find('function',1,true))
-local tick=7;function time_global()return tick end
-local clock=sloptimizer_device_clock.make_clock();assert(clock()==7);tick=19;assert(clock()==19)
+local tick=7;local calls=0;function device()calls=calls+1;return {time_global=function()return tick end}end
+local clock=sloptimizer_device_clock.make_clock();assert(clock()==7);tick=19;assert(clock()==19);assert(calls==1)
 """)
-print('Split-module loading, live-clock fallback and shared mutable upvalues passed')
+print('Split-module loading, retained live clock and shared mutable upvalues passed')

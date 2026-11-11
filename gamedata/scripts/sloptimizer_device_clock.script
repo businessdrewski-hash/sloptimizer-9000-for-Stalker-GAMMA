@@ -1,12 +1,8 @@
--- Creates a live clock accessor using a retained device handle when available.
--- Fallback is the existing time_global function. No time values are cached.
-
+-- Retain the engine device wrapper; read the current time on every call.
+-- device() and its clock method are part of the supported X-Ray engine API.
 function make_clock()
-    local d = type(device) == 'function' and device() or nil
-    if d and type(d.time_global) == 'function' then
-        return function()
-            return d:time_global()
-        end
+    local d = device()
+    return function()
+        return d:time_global()
     end
-    return time_global
 end

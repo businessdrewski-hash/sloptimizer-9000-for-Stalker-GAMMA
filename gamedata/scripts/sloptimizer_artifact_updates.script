@@ -1,25 +1,130 @@
--- Retains artifact identity and removes redundant reads inside the existing update flow.
+-- Reads current artifact identity and removes redundant reads inside the existing update flow.
 -- Condition, save restoration, physics and radiation branches remain in this body.
 
 -- Artifact updates: reuse lookups while retaining gameplay calculations.
 
 local installed = false
+
+-- Reviewed upstream body, used only at installation.
+local reference_body = [====[
+function(self, delta)
+	object_binder.update(self, delta)
+--	printf("pl:art [%s] pos %s", self.object:name(), vec_to_str(self.object:position()))
+
+	-- randomizer (first update)
+	local kind = SYS_GetParam(0, self.object:section(), "kind")
+	local kind_fits = kind and (kind == "i_arty" or kind == "i_arty_cont")
+	if (not cond_t[self.object:id()] and self.object:condition() >= 1 and kind_fits) then
+		local cond = (math.random(arti_min_eff, arti_max_eff) / 100)
+		if self.object:section() == "af_ah_f1" then
+			cond = 0.98
+		end
+		self.object:set_condition(cond)
+		cond_t[self.object:id()] = cond
+		pr("~randomizer set cond to: %s", r(cond))
+	end
+
+	-- if condition of stored artefact was changed by online transition / loading
+	if cond_t[self.object:id()] and self.object:condition() >= 1 then
+		-- set stored condition back
+		pr("condition changed from online/loading, prev: %s || curr: %s", r(self.object:condition()), r(cond_t[self.object:id()]))
+		self.object:set_condition(cond_t[self.object:id()])
+	end
+
+	-- if condition was changed by other addons
+	if (cond_t[self.object:id()] and self.object:condition() ~= cond_t[self.object:id()]) or (not cond_t[self.object:id()] and self.object:condition() < 1) then
+		pr("condition changed by other addons, prev: %s || curr: %s", cond_t[self.object:id()] and r(cond_t[self.object:id()]) or "nil", r(self.object:condition()))
+		-- update this condition
+		cond_t[self.object:id()] = self.object:condition()
+	end
+	
+	-- calculate distance to artefact updated
+	local pos = db.actor:position()
+	local af_dist = pos:distance_to_sqr(self.object:position())
+	local p = self.object:parent()
+	if af_dist then
+		if not p then
+			dist_t[self.object:section()] = af_dist
+		else
+			dist_t[self.object:section()] = false
+		end
+	end
+
+    if self.first_call == true then
+		local se_obj = alife_object(self.object:id())
+		if (se_obj) then
+			local m_data = alife_storage_manager.get_se_obj_state(se_obj, true)
+			if (m_data and m_data.offline_condition and m_data.name == self.object:name()) then
+				printf("loaded condition for %s "..tonumber(m_data.offline_condition), se_obj:section_name())
+			--	self.object:set_condition(tonumber(m_data.offline_condition) or 0.9999999)
+				--m_data.offline_condition = nil
+			end
+		end								  
+		local ini = self.object:spawn_ini()
+		if not (ini and ini:section_exist("fixed_bone")) then
+			self.first_call = false
+			return
+		end
+		local bone_name = ini:r_string_ex("fixed_bone", "name")
+
+		local ph_shell = self.object:get_physics_shell()
+		if not ph_shell then
+			--printf("no ph shell")
+			return
+		end
+
+		local ph_element = ph_shell:get_element_by_bone_name(bone_name)
+
+		if ph_element:is_fixed() then
+			--printf("OBJECT FIXED")
+		else
+			--printf("FIXING OBJECT")
+			ph_element:fix()
+		end
+		
+		self.first_call = false
+
+
+    end	
+	
+		local obj = self.object
+		local cobj = obj:cast_Artefact()
+		if (not cobj) then
+			return
+		end
+		local tg = time_global()
+		local val = 0
+		
+		if (tg > self._tmr_rad) and (not self.no_rad) and in_actor_ruck(obj) then
+			self._tmr_rad = tg + rad_tg_step
+	
+		-- Get radiation restore speed
+		local rad_val = cobj.m_fRadiationRestoreSpeed or 0
+		
+		-- No process for artefacts with no / healing rad effect
+		if (self.no_rad == nil) then
+			self.no_rad = (rad_val <= 0)
+			if self.no_rad then
+				--print_dbg("Inventory radiation | artefact [%s] is not harmful -> exclude!", obj:name())
+				return
+			end
+		end
+
+		-- Apply radiation on actor
+		local rad_delta = rad_val * rad_factor
+		db.actor:change_radiation(rad_delta)
+		
+		--print_dbg("Inventory radiation | artefact: %s - radiation effect: %s", obj:name(), rad_delta)
+		end
+end
+]====]
 function make_artifact(env, in_actor_ruck, rad_tg_step, rad_factor)
     return function(self, delta)
         object_binder.update(self, delta)
-        local object = self._gamma_opt_artifact_object
-        if not object then
-            object = self.object
-            self._gamma_opt_artifact_object = object
-        end
-        local id = self._gamma_opt_artifact_id
-        local section = self._gamma_opt_artifact_section
-        if id == nil then
-            id = object:id()
-            section = object:section()
-            self._gamma_opt_artifact_id = id
-            self._gamma_opt_artifact_section = section
-        end
+        -- Do not retain native object wrappers or identity across binder updates.
+        local object = self.object
+        local id = object:id()
+        local section = object:section()
         local condition = object:condition()
 
         -- randomizer (first update)
@@ -110,7 +215,6 @@ function make_artifact(env, in_actor_ruck, rad_tg_step, rad_factor)
         if not cobj then
             return
         end
-        local val = 0
 
         if (tg > self._tmr_rad) and not self.no_rad and in_actor_ruck(obj) then
             self._tmr_rad = tg + rad_tg_step
@@ -143,6 +247,9 @@ function install()
     if not info or not info.source:match('zz_item_artefact%.script$') or info.linedefined ~= 129 then
         return false, 'artifact source differs'
     end
+    if not sloptimizer_function_binding.matches_body(original, reference_body) then
+        return false, 'unrecognized upstream body; original retained'
+    end
     local values = {}
     for i = 1, 100 do
         local n, v = debug.getupvalue(original, i)
@@ -164,5 +271,5 @@ function install()
     class.update = fn
     installed = true
     return true,
-        'artifact identity retained; one live condition read per update plus readback after writes; physics and radiation unchanged'
+        'current artifact identity; live condition reads plus readback after writes; physics and radiation unchanged'
 end

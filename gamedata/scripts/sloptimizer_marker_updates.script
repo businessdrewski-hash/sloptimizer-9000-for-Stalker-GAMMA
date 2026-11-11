@@ -9,9 +9,6 @@ local render_device, cached_frame, cached_time
 local hover_scratch
 
 local function marker_time()
-    if not render_device then
-        return time_global()
-    end
     local frame = render_device.frame
     -- No frame identity available: retain the original live-clock behavior.
     if type(frame) ~= 'number' then
@@ -124,17 +121,10 @@ function install()
     assert(not installed, 'Smooth patch already installed')
     local util = utils_catspaw_hudmarks
     original_precheck = assert(util.marker_is_offscreen)
-    if type(device) == 'function' then
-        local candidate = device()
-        if candidate and type(candidate.time_global) == 'function' then
-            render_device = candidate
-        end
-    end
-    if render_device then
-        hover_scratch = vector()
-        -- Pure synchronous helper returns only a number; scratch never escapes.
-        util.dotproduct_for_pos = hover_dot
-    end
+    render_device = device()
+    hover_scratch = vector()
+    -- This synchronous helper returns a number; its scratch vector never escapes.
+    util.dotproduct_for_pos = hover_dot
     util.marker_is_offscreen = function(m)
         if m.preset ~= 'dotmark' or m.actor_taking then
             m.gamma_written_window = nil

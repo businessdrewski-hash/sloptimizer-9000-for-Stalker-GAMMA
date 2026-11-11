@@ -1,10 +1,14 @@
 # Sloptimizer 9000 for Stalker GAMMA
 
-**[Download v2.10.2-readable for MO2](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/download/v2.10.2-readable/Sloptimizer-9000-2.10.2-readable.zip)**
+**[Download v2.10.3-readable for MO2](https://github.com/businessdrewski-hash/sloptimizer-9000-for-Stalker-GAMMA/releases/download/v2.10.3-readable/Sloptimizer-9000-2.10.3-readable.zip)**
 
-Sloptimizer reduces repeated Lua work and temporary allocations in supported GAMMA scripts. This experimental release organizes each optimization into a named module with independent configuration and startup reporting. It does not replace engine files or change GC settings.
+Sloptimizer reduces repeated Lua work and temporary allocations in supported GAMMA scripts. The package organizes each optimization into a named module with independent configuration and startup reporting. It does not replace engine files or change GC settings.
 
 The repaired visibility optimization preserves recognized Atmospherics or Stealth Crash Fix formulas, including xrRazom load-time per-player rewrites. Unrecognized bodies are skipped. Lamp scans reuse a callback but check current conditions on every call; no lamp-result cache is used. World-light frame caching stays **disabled**. See [the lighting compatibility work](docs/AI-REVIEW.md).
+
+## Changes in 2.10.3
+
+Safer object handling, stronger upstream compatibility checks, callback fallback when sorting helpers change, and fixes for missing or recreated HUD widgets. [Full patch notes](docs/RELEASE-NOTES.md).
 
 ## For modders
 

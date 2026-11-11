@@ -1,4 +1,16 @@
-# v2.10.2-readable: lighting compatibility repairs
+# v2.10.3-readable: compatibility and safety
+
+* Reads current binder objects on each update instead of retaining object identities across updates.
+* Validates reviewed item, artifact, device and callback implementations before replacement.
+* Falls back to the original callback dispatcher if public sorting helpers change later.
+* Handles missing radiation widgets and party HUD renderers; tracks replacement party widgets without retaining removed wrappers.
+* Simplifies redundant checks around guaranteed engine APIs.
+
+See [Compatibility hardening](COMPATIBILITY-PASS.md) and [Validation](VALIDATION.md).
+Validation: 16 audit test methods and the existing portable suite passed. An initial gameplay walkthrough reported normal behavior. No additional FPS gain or exhaustive connected multiplayer validation is claimed.
+
+## Published baseline: v2.10.2-readable
+
 
 * Restores guarded visibility optimization for reviewed Atmospherics and Stealth Crash Fix variants, preserving each original formula.
 * Preserves xrRazom's inner load-time per-player memory/marking rewrites as well as its outer avatar wrapper. Checks instructions, constants and private-state names; unknown implementations skip.

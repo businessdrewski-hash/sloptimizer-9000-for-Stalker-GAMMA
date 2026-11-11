@@ -73,9 +73,6 @@ function install()
         end
     end
     local d = device()
-    if not d or type(d.precache_frame) ~= 'number' then
-        return false, 'device unavailable'
-    end
     local replacement = make_tasks(d)
     for name, fn in pairs(replacement) do
         setfenv(fn, getfenv(class[name]))

@@ -7,9 +7,10 @@ disabled_components = {}
 -- Rendering and interaction
 markers = true
 marker_projection = true
+-- Legacy switch name: enables live scan closure reuse, NOT cached lighting results.
 light_scan_cache = true
-light_scan_interval_ms = 100
-shared_light_scan = false
+light_scan_interval_ms = 100 -- Legacy setting; unused by live scans.
+shared_light_scan = false -- Retired experiment; no startup component consumes this.
 vision_light_frame = false
 visibility_reads = true
 
